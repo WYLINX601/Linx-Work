@@ -56,3 +56,10 @@ ls -d ~/.linx
 ```
 
 判定：端口不冲突；Home、UserData、Scheme、App ID 均不同；Linx 不读取 Synara 或 T3 Code 目录。
+
+### 实测记录（2026-11-25）
+
+- Linx：`node scripts/dev-runner.ts dev:server --home-dir /tmp/linx-verify --port 3774 --no-seed`，监听 `127.0.0.1:3774`。
+- Synara：`SYNARA_HOME=/tmp/synara-verify SYNARA_PORT=3773 SYNARA_NO_BROWSER=1 bun run src/index.ts`，监听 `127.0.0.1:3773`。
+- 两个进程同时存活；Linx 写入 `/tmp/linx-verify/userdata`，Synara 写入 `/tmp/synara-verify/userdata`，无交叉目录。
+- 结束时停止两个临时进程，未触碰 `~/.linx`、`~/.synara` 或仓库内状态。
