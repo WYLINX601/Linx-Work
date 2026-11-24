@@ -130,11 +130,11 @@ describe("DesktopPreReadyPlatform", () => {
   ])("prepares a $label Linux desktop entry before startup yields", ({ previousEntry }) => {
     vi.stubEnv("VITE_DEV_SERVER_URL", "");
     getSwitchValueMock.mockReturnValue("");
-    let desktopName = "t3code.desktop";
+    let desktopName = "linx.desktop";
     let desktopEntry = previousEntry;
     let iconInstalled = false;
     const iconSource = "/tmp/.mount_T3/resources/app.asar/apps/desktop/prod-resources/icon.png";
-    const iconPath = "/xdg/icons/com.t3tools.T3Code.desktop.png";
+    const iconPath = "/xdg/icons/com.linx.work.desktop.png";
     const iconBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
     readFileSyncMock.mockImplementation((path: string) => {
       if (path === iconSource) return iconBytes;
@@ -144,7 +144,7 @@ describe("DesktopPreReadyPlatform", () => {
       desktopName = name;
     });
     writeFileSyncMock.mockImplementation((path: string, contents: string | Buffer) => {
-      if (path === "/xdg/applications/com.t3tools.T3Code.desktop") desktopEntry = String(contents);
+      if (path === "/xdg/applications/com.linx.work.desktop") desktopEntry = String(contents);
       if (path === iconPath) iconInstalled = Buffer.compare(Buffer.from(contents), iconBytes) === 0;
     });
 
@@ -167,14 +167,11 @@ describe("DesktopPreReadyPlatform", () => {
           ),
         );
         const identity = yield* Effect.promise(() => portalIdentity);
-        assert.equal(identity.desktopName, "com.t3tools.T3Code.desktop");
+        assert.equal(identity.desktopName, "com.linx.work.desktop");
         assert.include(identity.desktopEntry ?? "", "Exec=/Applications/current.AppImage %U");
-        assert.include(identity.desktopEntry ?? "", "Name=T3 Code (Beta)");
-        assert.include(identity.desktopEntry ?? "", "MimeType=x-scheme-handler/t3code;");
-        assert.include(
-          identity.desktopEntry ?? "",
-          "Icon=/xdg/icons/com.t3tools.T3Code.desktop.png",
-        );
+        assert.include(identity.desktopEntry ?? "", "Name=Linx (Beta)");
+        assert.include(identity.desktopEntry ?? "", "MimeType=x-scheme-handler/linx;");
+        assert.include(identity.desktopEntry ?? "", "Icon=/xdg/icons/com.linx.work.desktop.png");
         assert.equal(
           copyFileSyncMock.mock.calls.length,
           0,
@@ -193,7 +190,7 @@ describe("DesktopPreReadyPlatform", () => {
     ({ relaunchedByUpdater, restored }) => {
       vi.stubEnv("VITE_DEV_SERVER_URL", "");
       getSwitchValueMock.mockReturnValue("");
-      const entryPath = "/xdg/applications/com.t3tools.T3Code.desktop";
+      const entryPath = "/xdg/applications/com.linx.work.desktop";
       const files = new Map([[entryPath, "Exec=/Applications/T3-Code-0.1.8-x86_64.AppImage %U\n"]]);
       readFileSyncMock.mockImplementation((path: string) => files.get(path) ?? "{}");
       writeFileSyncMock.mockImplementation((path: string, contents: string | Buffer) => {
@@ -239,15 +236,15 @@ describe("DesktopPreReadyPlatform", () => {
               DesktopConfig.layerTest({
                 XDG_DATA_HOME: "/xdg",
                 APPIMAGE: "/Applications/current.AppImage",
-                T3CODE_DESKTOP_LAUNCHER_PATH: " /opt/T3 Code/t3code ",
+                T3CODE_DESKTOP_LAUNCHER_PATH: " /opt/Linx Work/linx ",
               }),
             ),
           ),
         );
         const entry = writeFileSyncMock.mock.calls.find(
-          ([path]) => path === "/xdg/applications/com.t3tools.T3Code.desktop",
+          ([path]) => path === "/xdg/applications/com.linx.work.desktop",
         )?.[1];
-        assert.include(entry, 'Exec="/opt/T3 Code/t3code" %U');
+        assert.include(entry, 'Exec="/opt/Linx Work/linx" %U');
       }),
     ).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllEnvs())));
   });

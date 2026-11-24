@@ -5,6 +5,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { LINX_DEV_WEB_PORT } from "@t3tools/shared/linxIdentity";
 import * as NetService from "@t3tools/shared/Net";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
@@ -19,8 +20,8 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { ScenarioError } from "./shell.ts";
 
-// The dev runner's web port is 5733 plus an offset. Mirror of BASE_WEB_PORT in dev-runner.ts.
-const BASE_WEB_PORT = 5733;
+// The dev runner's web port is LINX_DEV_WEB_PORT plus an offset. Mirror of BASE_WEB_PORT in dev-runner.ts.
+const BASE_WEB_PORT = LINX_DEV_WEB_PORT;
 // The replay agent `vp run dev` registers: free, recorded turns through the real adapter.
 const REPLAY = { instanceId: "devReplay", model: "showcase" };
 // Generated text (titles) cannot go to the replay agent: the server swaps an ACP agent for the

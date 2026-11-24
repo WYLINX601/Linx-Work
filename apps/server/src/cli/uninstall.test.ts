@@ -133,7 +133,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("t3 uninstall com
               current: true,
               installedBaseDir: "/home/me/.t3",
               ...(++reads >= input.otherFromRead ? { otherBaseDir: "/home/me/.t3" } : {}),
-              unitPath: "/home/me/.config/systemd/user/t3code.service",
+              unitPath: "/home/me/.config/systemd/user/linx.service",
               logPath: "/home/me/.t3/userdata/logs/boot-service.log",
             })),
             withStopped: (operation) => operation,

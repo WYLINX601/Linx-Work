@@ -8,7 +8,7 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeOS from "node:os";
 import { assert, it, vi } from "vite-plus/test";
 
-import { fixPath, hydratePosixHome, refreshWindowsPath } from "./os-jank.ts";
+import { fixPath, hydratePosixHome, refreshWindowsPath, resolveBaseDir } from "./os-jank.ts";
 
 vi.mock("node:child_process", { spy: true });
 
@@ -228,4 +228,14 @@ effectIt.effect("adds a directory an installer wrote to the registry after launc
 
     assert.deepEqual(env, { PATH: `C:\\Tools;C:\\Windows;${installed}` });
   }),
+);
+
+effectIt.effect("defaults the server home to the Linx directory", () =>
+  Effect.gen(function* () {
+    assert.equal(yield* resolveBaseDir(undefined), "/home/linx-user/.linx");
+    assert.equal(yield* resolveBaseDir("~/custom"), "/home/linx-user/custom");
+  }).pipe(
+    Effect.provide(NodeServices.layer),
+    Effect.provideService(HostProcess.HomeDirectory, "/home/linx-user"),
+  ),
 );

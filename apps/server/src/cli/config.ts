@@ -345,7 +345,7 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
       (runtime.value.ownerId === undefined ||
         isServerOwnershipHeld(derivedPaths.serverRuntimeStatePath))
     ) {
-      // Bare `t3 pair` prefers a linked worktree's `.t3`, so always name this home.
+      // Bare `t3 pair` prefers a linked worktree's `.linx`, so always name this home.
       const { command: pairCommand } = yield* resolveHostCliCommand("pair", [
         "--base-dir",
         baseDir,

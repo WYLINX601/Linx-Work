@@ -688,7 +688,7 @@ export const writePosixLauncher = Effect.fn("cloud.pinned_runtime.write_posix_la
     const path = yield* Path.Path;
     const staging = yield* fs.makeTempFileScoped({
       directory: path.dirname(input.launcher),
-      prefix: ".t3-",
+      prefix: ".linx-",
     });
     yield* fs.writeFileString(staging, posixLauncherScript(input.executable));
     yield* fs.chmod(staging, 0o755);

@@ -13,9 +13,9 @@ const defaultInput = {
   platform: "darwin",
   processArch: "arm64",
   appVersion: "0.0.22",
-  appPath: "/Applications/T3 Code.app/Contents/Resources/app.asar",
+  appPath: "/Applications/Linx.app/Contents/Resources/app.asar",
   isPackaged: false,
-  resourcesPath: "/Applications/T3 Code.app/Contents/Resources",
+  resourcesPath: "/Applications/Linx.app/Contents/Resources",
   runningUnderArm64Translation: false,
 } satisfies DesktopEnvironment.MakeDesktopEnvironmentInput;
 
@@ -68,8 +68,12 @@ describe("DesktopEnvironment", () => {
       );
       const production = yield* makeEnvironment();
 
-      assert.equal(development.stateDir, "/Users/alice/.t3/dev");
-      assert.equal(production.stateDir, "/Users/alice/.t3/userdata");
+      assert.equal(development.stateDir, "/Users/alice/.linx/dev");
+      assert.equal(production.stateDir, "/Users/alice/.linx/userdata");
+      assert.equal(development.appUserModelId, "com.linx.work.dev");
+      assert.equal(production.appUserModelId, "com.linx.work");
+      assert.equal(production.branding.baseName, "Linx");
+      assert.equal(production.branding.displayName, "Linx (Beta)");
     }),
   );
 });

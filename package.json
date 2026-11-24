@@ -28,6 +28,7 @@
     "build:desktop:bundle": "vp run --filter @t3tools/desktop build:bundle",
     "build:resource-monitor": "cargo build --locked --release --manifest-path native/resource-monitor/Cargo.toml",
     "typecheck": "vp run -r --cache --concurrency-limit 4 typecheck",
+    "linx:verify-baseline": "node scripts/linx/verify-baseline.ts",
     "tc": "vp run -r --cache --concurrency-limit 4 typecheck",
     "check:changed": "node scripts/check-changed.ts",
     "report:renders": "node scripts/render-metrics.ts",

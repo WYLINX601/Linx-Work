@@ -282,7 +282,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
       assert(child.pid !== undefined);
       for (const source of ["flag", "T3CODE_HOME", "default"] as const) {
         const home = yield* fs.makeTempDirectoryScoped({ prefix: "t3-cli-preflight-pair-" });
-        const baseDir = source === "default" ? path.join(home, ".t3") : home;
+        const baseDir = source === "default" ? path.join(home, ".linx") : home;
         const stateDir = path.join(baseDir, "userdata");
         yield* fs.makeDirectory(stateDir, { recursive: true });
         yield* fs.writeFileString(
@@ -900,13 +900,13 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         50_123,
       );
       expect(selected).toEqual([
-        [3773, undefined],
-        [3773, "100.64.0.7"],
+        [3774, undefined],
+        [3774, "100.64.0.7"],
       ]);
       expect(yield* resolvePort({ port: Option.some(8788) })).toBe(8788);
       expect(
         yield* resolvePort({ mode: Option.some("desktop" as const), port: Option.none() }),
-      ).toBe(3773);
+      ).toBe(3774);
       expect(selected).toHaveLength(2);
     }),
   );

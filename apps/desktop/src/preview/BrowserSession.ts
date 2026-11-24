@@ -20,9 +20,9 @@ import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import { m } from "../i18n/messages.ts";
 
-const PREVIEW_PARTITION_PREFIX = "persist:t3code-preview-";
+const PREVIEW_PARTITION_PREFIX = "persist:linx-preview-";
 /** Ephemeral partitions omit persist: but retain a product prefix so the webview gate recognizes them. */
-const PREVIEW_EPHEMERAL_PARTITION_PREFIX = "t3code-preview-ephemeral-";
+const PREVIEW_EPHEMERAL_PARTITION_PREFIX = "linx-preview-ephemeral-";
 const PROFILE_PARTITION_MARKER = "profile-";
 
 export type BrowserSessionPartitionNamespace = "profile";
@@ -119,7 +119,7 @@ const certificateApprovalKey = ({ origin, fingerprint, error }: CertificateAppro
   JSON.stringify([origin, fingerprint, error]);
 
 /** Kept beside the profile's cookies, so it lives and dies with them. */
-const CERTIFICATE_APPROVALS_FILE = "t3code-certificate-approvals.json";
+const CERTIFICATE_APPROVALS_FILE = "linx-certificate-approvals.json";
 
 /** Server-chosen certificate names must not add lines or flood the prompt. */
 const promptCertificateName = (name: string): string => {

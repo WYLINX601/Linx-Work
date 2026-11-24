@@ -17,6 +17,7 @@ import {
   processServiceInstanceId,
   type SignalExport,
 } from "@t3tools/shared/observability";
+import { LINX_SERVER_DEFAULT_PORT } from "@t3tools/shared/linxIdentity";
 import * as OtelEnvironment from "@t3tools/shared/otelEnvironment";
 import { type ReleaseChannel, releaseResourceAttributes } from "@t3tools/shared/releaseResource";
 import packageJson from "../package.json" with { type: "json" };
@@ -27,7 +28,7 @@ declare const __T3CODE_TELEMETRY_CHANNEL__: ReleaseChannel | undefined;
 export const telemetryChannel: ReleaseChannel =
   typeof __T3CODE_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __T3CODE_TELEMETRY_CHANNEL__;
 
-export const DEFAULT_PORT = 3773;
+export const DEFAULT_PORT = LINX_SERVER_DEFAULT_PORT;
 
 export const RuntimeMode = Schema.Literals(["web", "desktop"]);
 export type RuntimeMode = typeof RuntimeMode.Type;
