@@ -14,6 +14,7 @@ import {
   ThreadId,
   TurnItemId,
   WS_METHODS,
+  type LinxLaunchThreadInput,
   type OrchestrationV2Command,
   type OrchestrationV2ThreadLaunchInput,
   type OrchestrationV2ThreadProjection,
@@ -46,6 +47,7 @@ import { v2Now, v2Projection, v2ThreadId } from "../state/orchestrationV2TestFix
 import {
   archiveThread,
   interruptThreadTurn,
+  launchLinxThread,
   promoteQueuedRun,
   revertThreadCheckpoint,
   resumeThreadQueue,
@@ -635,6 +637,49 @@ describe("V2 environment commands", () => {
         "command-host-gone-false",
         "command-host-gone-true",
       ]);
+    }).pipe(Effect.provide(layerTestRandom)),
+  );
+
+  it.effect("replays the exact Expert launch on a replacement socket", () =>
+    Effect.gen(function* () {
+      const supervisor = yield* makeSupervisor({ commands: [], projects: [] });
+      const healthySession = Option.getOrThrow(yield* SubscriptionRef.get(supervisor.session));
+      const firstFailed = yield* Deferred.make<void>();
+      const requests: LinxLaunchThreadInput[] = [];
+      const input: LinxLaunchThreadInput = {
+        clientRequestId: "expert-launch-1",
+        snapshotId: "snapshot-1",
+        projectId: ProjectId.make("project-1"),
+        title: "Expert thread",
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "test" },
+        workspaceStrategy: { type: "root" },
+        runtimeMode: "approval-required",
+        interactionMode: "default",
+        initialMessage: { text: "Start" },
+      };
+      const client = {
+        ...healthySession.client,
+        [WS_METHODS.linxThreadsLaunch]: (payload: LinxLaunchThreadInput) =>
+          Effect.gen(function* () {
+            requests.push(payload);
+            if (requests.length === 1) {
+              yield* SubscriptionRef.set(supervisor.session, Option.none());
+              yield* Deferred.succeed(firstFailed, undefined);
+              return yield* Effect.failCause(Cause.interrupt());
+            }
+            return { threadId: v2ThreadId, snapshotId: payload.snapshotId, resumed: true };
+          }),
+      } as unknown as WsRpcProtocolClient;
+      yield* SubscriptionRef.set(supervisor.session, Option.some({ ...healthySession, client }));
+      const fiber = yield* launchLinxThread(input).pipe(
+        Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+        Effect.forkChild,
+      );
+      yield* Deferred.await(firstFailed);
+      yield* SubscriptionRef.set(supervisor.session, Option.some({ ...healthySession, client }));
+      const result = yield* Fiber.join(fiber);
+      expect(requests).toEqual([input, input]);
+      expect(result).toEqual({ threadId: v2ThreadId, snapshotId: "snapshot-1", resumed: true });
     }).pipe(Effect.provide(layerTestRandom)),
   );
 

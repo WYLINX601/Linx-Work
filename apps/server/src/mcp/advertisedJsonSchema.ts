@@ -107,5 +107,8 @@ const compact = (schema: Json, optional: boolean): Json => {
  * the `null` branch of optional properties. A tagged union of objects becomes one object.
  * Decoding still uses the full schema, so each tag's own required fields still apply.
  */
-export const advertisedJsonSchema = (tool: Tool.Any) =>
-  compact(Tool.getJsonSchema(tool), false) as ReturnType<typeof Tool.getJsonSchema>;
+export const advertisedJsonSchema = (tool: Tool.Any): JsonObject & { readonly type: "object" } => ({
+  ...(compact(Tool.getJsonSchema(tool), false) as JsonObject),
+  // Effect's empty Struct only excludes null; MCP input is always an object.
+  type: "object" as const,
+});

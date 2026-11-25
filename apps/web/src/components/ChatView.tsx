@@ -355,6 +355,7 @@ import { useProactivePanels } from "../hooks/useProactivePanels";
 import { useIncrementalTimelineEntries } from "../hooks/useIncrementalTimelineEntries";
 import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./chat/ComposerBannerStack";
+import { LinxComposerBanner } from "./chat/LinxComposerBanner";
 import { modelFallbackBannerItem } from "./chat/ComposerUsageLimits";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { resolveThreadSyncPhase } from "../threadSync";
@@ -1063,6 +1064,11 @@ export default function ChatView(props: ChatViewProps) {
     (isServerThread ? activeThread?.runtimeMode : undefined) ??
     defaultRuntimeMode;
   const isLocalDraftThread = !isServerThread && localDraftThread !== undefined;
+  const linxExpertSelected = useComposerDraftStore(
+    (store) =>
+      isLocalDraftThread &&
+      store.getComposerDraft(composerDraftTarget)?.linxLaunch?.environmentId === environmentId,
+  );
   const canCheckoutPullRequestIntoThread = canWriteSourceControl && isLocalDraftThread;
   const activeThreadId = activeThread?.id ?? null;
   // Turn items can lag projection hydration; keep the environment locked through that gap.
@@ -3814,6 +3820,12 @@ export default function ChatView(props: ChatViewProps) {
                   >
                     <ChildThreadApprovals threadRef={activeThreadRef} />
                     <div className="relative">
+                      {isLocalDraftThread ? (
+                        <LinxComposerBanner
+                          environmentId={environmentId}
+                          draftTarget={composerDraftTarget}
+                        />
+                      ) : null}
                       <ComposerSurface.Shell contextRow={showComposerContextStrip}>
                         <ComposerSurface.Host
                           inert={queuedRunEdit.isSaving}
@@ -3860,6 +3872,13 @@ export default function ChatView(props: ChatViewProps) {
                                 attachmentUploadsCapabilityKnown={attachmentUploadsCapabilityKnown}
                                 supportsAttachmentUploads={supportsAttachmentUploads}
                                 supportsQuestionAttachments={supportsQuestionAttachments}
+                                attachmentsBlockedReason={
+                                  linxExpertSelected
+                                    ? gt(
+                                        "Attachments are unavailable when starting an Expert thread.",
+                                      )
+                                    : undefined
+                                }
                                 maxFileAttachmentBytes={maxFileAttachmentBytes}
                                 routeKind={routeKind}
                                 routeThreadRef={routeThreadRef}

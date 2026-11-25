@@ -59,7 +59,11 @@ export const layer = Layer.effect(
         }).pipe(
           Effect.mapError((error) =>
             failure(
-              isProviderDisabled(error) ? "provider_unavailable" : "launch_failed",
+              isProviderDisabled(error)
+                ? "provider_unavailable"
+                : isThreadLaunchError(error) && error.operation === "resolve-project"
+                  ? "invalid_request"
+                  : "launch_failed",
               isProviderDisabled(error)
                 ? "The selected provider is unavailable."
                 : isThreadLaunchError(error)
@@ -73,7 +77,12 @@ export const layer = Layer.effect(
           Effect.provideService(FileSystem.FileSystem, fileSystem),
           Effect.provideService(ServerConfig.ServerConfig, serverConfig),
         );
-        return { resumed: result.resumed, runId: null };
+        return {
+          resumed: result.resumed,
+          runId:
+            result.projection.runs.find((run) => run.userMessageId === request.messageId)?.id ??
+            null,
+        };
       }),
     });
   }),

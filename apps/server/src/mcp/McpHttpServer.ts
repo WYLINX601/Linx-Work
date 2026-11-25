@@ -1440,7 +1440,7 @@ const layerThemeToolkit = toolkitRegistration(ThemeToolkit, ThemeHandlers.layer)
   Layer.provide(ThreadCommandExecutor.layer),
 );
 
-const layerLinxExpertContextToolkit = toolkitRegistration(
+export const layerLinxExpertContextToolkit = toolkitRegistration(
   LinxExpertContextToolkit,
   LinxExpertContextHandlers.layer,
 ).pipe(Layer.provide(LinxMcpServices.layer));

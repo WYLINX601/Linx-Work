@@ -1,5 +1,5 @@
 import { msg } from "gt-react";
-import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
+import { errorDisplayMessage, thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { m } from "~/i18n/messages";
 import { isClearComposerCommand, parseSideChatCommand } from "@t3tools/shared/composerTrigger";
 import { readWorktreeBaseBranch } from "../../worktreeRepositoryChoiceStore";
@@ -24,6 +24,7 @@ import {
   AuthOrchestrationOperateScope,
   DEFAULT_MODEL,
   type EnvironmentId,
+  type LinxLaunchThreadInput,
   type ModelSelection,
   type PreviewAnnotationPayload,
   type ResponseContextRecord,
@@ -125,6 +126,7 @@ import { fileAttachmentCapabilityBlockReason } from "./composerAttachmentFiles";
 import { useLinkedEnvironments } from "../../state/peerLinks";
 import { readEnvironmentScope } from "../../state/session";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
+import { launchExpertThread } from "../../state/linx";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   threadContextsOutsideEnvironment,
@@ -383,6 +385,7 @@ export function useComposerSend(input: ComposerSendInput) {
   const startThreadTurn = useOrchestrationCommand(threadEnvironment.startTurn, {
     reportFailure: false,
   });
+  const launchExpert = useOrchestrationCommand(launchExpertThread, { reportFailure: false });
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
     reportFailure: false,
   });
@@ -1072,6 +1075,92 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
 
+    const draftStore = useComposerDraftStore.getState();
+    const expert = isLocalDraftThread
+      ? draftStore.getComposerDraft(composerDraftTarget)?.linxLaunch
+      : undefined;
+    if (expert?.environmentId === environmentId) {
+      if (!composerHoldsOnlyText || outgoingMessageContext !== undefined || !messageTextForSend) {
+        setThreadError(
+          threadIdForSend,
+          m(
+            msg(
+              "Start an Expert thread with text only. Remove attachments and added context first.",
+            ),
+          ),
+        );
+        return;
+      }
+      if (multipleModelSelections !== null) {
+        setThreadError(threadIdForSend, m(msg("Choose one model to start an Expert thread.")));
+        return;
+      }
+      const payload: Omit<LinxLaunchThreadInput, "clientRequestId"> = {
+        snapshotId: expert.expert.snapshotId,
+        projectId: activeProject.id,
+        title: deriveThreadTitleSeed({ text: messageTextForSend, attachments: [] }, m),
+        modelSelection: ctxSelectedModelSelection,
+        runtimeMode,
+        interactionMode: DEFAULT_INTERACTION_MODE,
+        workspaceStrategy: baseBranchForWorktree
+          ? {
+              type: "worktree",
+              baseRef: baseBranchForWorktree,
+              ...(startFromOrigin ? { startFromOrigin: true } : {}),
+              ...(worktreeRepositories ? { repositories: worktreeRepositories } : {}),
+            }
+          : activeThread.worktreePath
+            ? {
+                type: "existing_worktree",
+                worktreePath: activeThread.worktreePath,
+                ...(activeThreadBranch ? { branch: activeThreadBranch } : {}),
+              }
+            : { type: "root", ...(activeThreadBranch ? { branch: activeThreadBranch } : {}) },
+        initialMessage: { text: outgoingMessageText },
+      };
+      const previous = expert.attempt;
+      const clientRequestId =
+        previous !== null &&
+        JSON.stringify(previous) ===
+          JSON.stringify({ ...payload, clientRequestId: previous.clientRequestId })
+          ? previous.clientRequestId
+          : newMessageId();
+      const attempt = { ...payload, clientRequestId };
+      draftStore.setLinxLaunch(composerDraftTarget, { ...expert, attempt });
+      sendInFlightRef.current = true;
+      if (isCurrentRouteThread())
+        beginLocalDispatch({ preparingWorktree: false, submissionIntent: "foreground" });
+      const result = await launchExpert({ environmentId, input: attempt }).finally(() => {
+        sendInFlightRef.current = false;
+        if (isCurrentRouteThread()) resetLocalDispatch();
+      });
+      if (result._tag === "Failure") {
+        if (!isAtomCommandInterrupted(result)) {
+          setThreadError(
+            threadIdForSend,
+            errorDisplayMessage(squashAtomCommandFailure(result), m) ??
+              m(msg("Could not start the Expert thread. Your draft was kept.")),
+          );
+        }
+        return;
+      }
+      const threadRef = scopeThreadRef(environmentId, result.value.threadId);
+      const latest = useComposerDraftStore.getState();
+      if (latest.getComposerDraft(composerDraftTarget)?.prompt === promptAtSend) {
+        clearComposerDraftContent(composerDraftTarget);
+      }
+      latest.setLinxLaunch(composerDraftTarget, null);
+      latest.markDraftThreadPromoting(composerDraftTarget, threadRef);
+      if (isCurrentRouteThread()) {
+        await navigate({
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(threadRef),
+        });
+      }
+      void recordPromptSent(environmentId);
+      return;
+    }
+
     const readLiveAttachmentCapabilities = () =>
       liveAttachmentCapabilities(environmentId, composerFilesSnapshot);
 
@@ -1757,7 +1846,11 @@ export function useComposerSend(input: ComposerSendInput) {
   const onSendLatest = useStableCallback(onSend);
   const sendWithEnvironmentRefresh = async (...args: Parameters<typeof onSend>) => {
     const refresh =
-      args[3] || sendInFlightRef.current || readPendingEnvironmentChange() !== null
+      args[3] ||
+      sendInFlightRef.current ||
+      readPendingEnvironmentChange() !== null ||
+      useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.linxLaunch
+        ?.environmentId === environmentId
         ? null
         : refreshBeforeSend();
     if (refresh === null) return onSend(...args);

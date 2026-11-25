@@ -35,6 +35,7 @@ import {
   type OrchestrationV2TurnItem,
   type TerminalMetadataStreamEvent,
   type ResolvedKeybindingsConfig,
+  type ServerConfigStreamEvent,
 } from "@t3tools/contracts";
 import type {
   ConnectionAttemptError,
@@ -436,6 +437,7 @@ let pendingDispatches: Array<{
 let pendingAssetUrls: Array<Deferred.Deferred<AssetCreateUrlResult>> = [];
 let sequence = 1;
 let vcsStatusSubscriber: Queue.Queue<VcsStatusStreamEvent> | null = null;
+const configSubscribers = new Set<Queue.Queue<ServerConfigStreamEvent>>();
 
 const subscribe = <A>(first: ReadonlyArray<A>, register?: (queue: Queue.Queue<A>) => () => void) =>
   Stream.unwrap(
@@ -449,6 +451,23 @@ const subscribe = <A>(first: ReadonlyArray<A>, register?: (queue: Queue.Queue<A>
       return Stream.fromQueue(queue);
     }),
   );
+
+const configSnapshot = (): ServerConfigStreamEvent => ({
+  version: 1,
+  type: "snapshot",
+  config: serverConfig(),
+});
+const subscribeFakeConfig = () =>
+  Stream.suspend(() =>
+    subscribe([configSnapshot()], (queue) => {
+      configSubscribers.add(queue);
+      return () => configSubscribers.delete(queue);
+    }),
+  );
+const publishFakeConfig = () => {
+  const snapshot = configSnapshot();
+  for (const subscriber of configSubscribers) Queue.offerUnsafe(subscriber, snapshot);
+};
 
 const handlers: Record<string, (input: never) => unknown> = {
   // Recorded, and accepted only when the scenario asks, since a pending command holds every
@@ -550,8 +569,7 @@ const handlers: Record<string, (input: never) => unknown> = {
         if (vcsStatusSubscriber === queue) vcsStatusSubscriber = null;
       };
     }),
-  [WS_METHODS.subscribeServerConfig]: () =>
-    subscribe([{ version: 1 as const, type: "snapshot" as const, config: serverConfig() }]),
+  [WS_METHODS.subscribeServerConfig]: subscribeFakeConfig,
 };
 
 // Unanswered calls stay pending, like a server that has not replied yet.
@@ -567,8 +585,7 @@ const client = new Proxy(handlers, {
 const session: EnvironmentConnectionLease["session"] = {
   client: client as unknown as WsRpcProtocolClient,
   initialConfig: Effect.sync(serverConfig),
-  subscribeServerConfig: () =>
-    subscribe([{ version: 1 as const, type: "snapshot" as const, config: serverConfig() }]),
+  subscribeServerConfig: subscribeFakeConfig,
   ready: Effect.void,
   probe: Effect.void,
   inboundFrames: Effect.succeed(0),
@@ -622,6 +639,8 @@ export function installFakeEnvironment(
     ),
     keybindings: options?.keybindings ?? DEFAULT_RESOLVED_KEYBINDINGS,
   };
+  // The environment lease can outlive the previous render's fixture.
+  if (options?.keybindings !== undefined) publishFakeConfig();
   dispatched = [];
   acceptCommands = options?.acceptCommands === true;
   projects = [
@@ -655,6 +674,7 @@ export function installFakeEnvironment(
       globalThis.fetch = realFetch;
       threads = [];
       baseServerConfig = makeServerConfig([CODEX_PROVIDER]);
+      if (options?.keybindings !== undefined) publishFakeConfig();
       dispatched = [];
       acceptCommands = false;
       projects = [project];

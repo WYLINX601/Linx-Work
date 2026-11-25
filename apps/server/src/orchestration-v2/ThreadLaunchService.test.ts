@@ -1,3 +1,7 @@
+import * as LinxServices from "../linx/LinxServices.ts";
+import { ExpertSnapshotService } from "../linx/expert/ExpertSnapshotService.ts";
+import { LinxLaunchService } from "../linx/thread/LinxLaunchService.ts";
+import { ThreadBindingRepository } from "../linx/thread/ThreadBindingRepository.ts";
 import * as DocumentText from "../provider/DocumentText.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as WorktreeSetupTracker from "../project/WorktreeSetupTracker.ts";
@@ -2722,6 +2726,91 @@ it.effect("creates a strong provider-thread mapping for an imported native sessi
     );
   }).pipe(Effect.provide(harness.layer));
 });
+
+it.effect(
+  "replays a lost Linx launch response through the real T3 receipt without another run",
+  () => {
+    const harness = makeHarness();
+    const dependencies = ServerConfig.layerTest(process.cwd(), {
+      prefix: "linx-launch-replay-",
+    }).pipe(
+      Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+      Layer.merge(harness.layer),
+    );
+    let dropResponse = true;
+    const lossyLaunch = Layer.effect(
+      ThreadLaunch.ThreadLaunchService,
+      Effect.map(ThreadLaunch.ThreadLaunchService, (native) => ({
+        ...native,
+        launch: (request: ThreadLaunch.ThreadLaunchInput) =>
+          native.launch(request).pipe(
+            Effect.flatMap((result) => {
+              if (!dropResponse) return Effect.succeed(result);
+              dropResponse = false;
+              return Effect.fail(
+                new ThreadLaunch.ThreadLaunchError({
+                  operation: "dispatch-message",
+                  commandId: request.commandId,
+                  projectId: request.projectId,
+                  cause: "lost response after T3 acceptance",
+                }),
+              );
+            }),
+          ),
+      })),
+    );
+    const services = LinxServices.layer.pipe(
+      Layer.provide(lossyLaunch),
+      Layer.provideMerge(dependencies),
+    );
+    return Effect.gen(function* () {
+      const snapshots = yield* ExpertSnapshotService;
+      const launches = yield* LinxLaunchService;
+      const bindings = yield* ThreadBindingRepository;
+      const threads = yield* ThreadManagement.ThreadManagementService;
+      const snapshot = yield* snapshots.create({
+        expertId: "receipt-reviewer",
+        revision: 1,
+        persona: "Review carefully.",
+        references: [],
+        connectionRevisions: {},
+        mcpGrants: [],
+        skillSelection: [],
+      });
+      const input = {
+        clientRequestId: "receipt-recovery",
+        snapshotId: snapshot.snapshotId,
+        projectId,
+        title: "Recover launch",
+        modelSelection,
+        runtimeMode: "full-access" as const,
+        interactionMode: "default" as const,
+        workspaceStrategy: { type: "root" as const },
+        initialMessage: { text: "Recover this message." },
+      };
+      const error = yield* Effect.flip(launches.launch(input));
+      assert.equal(error.code, "launch_failed");
+      const outbox = yield* bindings.getOutbox(input.clientRequestId);
+      assert.equal(outbox?.state, "pending");
+      assert.equal(outbox?.attempts, 1);
+      assert.equal(outbox?.lastError, "launch_failed");
+      const [left, right] = yield* Effect.all([launches.launch(input), launches.launch(input)], {
+        concurrency: "unbounded",
+      });
+      assert.equal(left.threadId, error.threadId);
+      assert.equal(right.threadId, left.threadId);
+      assert.isTrue(left.resumed);
+      const projection = yield* threads.getThreadProjection(left.threadId);
+      assert.deepEqual(
+        projection.messages.map((message) => message.text),
+        [input.initialMessage.text],
+      );
+      assert.equal(projection.runs.length, 1);
+      assert.equal((yield* bindings.getBinding(left.threadId))?.runId, projection.runs[0]?.id);
+      assert.equal((yield* bindings.getOutbox(input.clientRequestId))?.state, "sent");
+    }).pipe(Effect.provide(services));
+  },
+);
 
 it.effect("shared intake preserves durable attachment bytes after a lost launch result", () => {
   const harness = makeHarness();

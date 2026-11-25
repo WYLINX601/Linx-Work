@@ -95,3 +95,34 @@ it.effect("fails closed when stored content no longer matches its hash", () =>
     }),
   ),
 );
+
+it.effect("lists the highest revision per expert, ordered by expert id", () =>
+  withService(() =>
+    Effect.gen(function* () {
+      const service = yield* ExpertSnapshotService;
+      yield* service.create({ ...input, expertId: "z", revision: 1 });
+      const latest = yield* service.create({
+        ...input,
+        expertId: "a",
+        revision: 3,
+        persona: "Latest",
+      });
+      yield* service.create({ ...input, expertId: "a", revision: 2, persona: "Older" });
+      const list = yield* service.listLatest();
+      assert.deepEqual(
+        list.map(({ expertId, revision }) => [expertId, revision]),
+        [
+          ["a", 3],
+          ["z", 1],
+        ],
+      );
+      assert.deepEqual(list[0], {
+        expertId: "a",
+        revision: 3,
+        snapshotId: latest.snapshotId,
+        contentHash: latest.contentHash,
+        personaPreview: "Latest",
+      });
+    }),
+  ),
+);

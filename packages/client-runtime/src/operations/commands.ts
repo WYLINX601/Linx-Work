@@ -10,6 +10,7 @@ import {
   OrchestrationV2CheckpointUnavailableError,
   WS_METHODS,
   type ChatAttachment,
+  type LinxLaunchThreadInput,
   MessageId,
   type ModelSelection,
   type NodeId,
@@ -774,6 +775,12 @@ export const setThreadInteractionMode = Effect.fn("EnvironmentCommands.setThread
     });
   },
 );
+
+export const launchLinxThread = Effect.fn("EnvironmentCommands.launchLinxThread")(function* (
+  input: LinxLaunchThreadInput,
+) {
+  return yield* resendAfterSocketLoss(request(WS_METHODS.linxThreadsLaunch, input));
+});
 
 // Servers without native resume dispatch command.text verbatim; newer ones clear
 // it when manualContinuationOfRunId is set.

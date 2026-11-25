@@ -62,7 +62,28 @@ it.effect("rejects a symlink at the content path", () =>
       NodeFS.rmSync(target);
       NodeFS.symlinkSync(outside, target);
       const error = yield* Effect.flip(store.read(stored.relativePath));
+      const write = yield* Effect.flip(store.put({ kind: "expert", bytes }));
+      assert.equal(write._tag, "LinxResourcePathError");
       assert.equal(error._tag, "LinxResourcePathError");
+    }),
+  ),
+);
+
+it.effect("does not follow a symlink in the resource directory hierarchy", () =>
+  withStore((root) =>
+    Effect.gen(function* () {
+      const store = yield* LinxResourceStore;
+      const bytes = new Uint8Array([1, 2, 3]);
+      const stored = yield* store.put({ kind: "original", bytes });
+      NodeFS.symlinkSync(NodePath.join(root, "original"), NodePath.join(root, "alias"), "dir");
+      const read = yield* Effect.flip(
+        store.read(stored.relativePath.replace("original/", "alias/")),
+      );
+      assert.equal(read._tag, "LinxResourcePathError");
+      const put = yield* Effect.flip(
+        store.put({ kind: "alias", bytes: new Uint8Array([4, 5, 6]) }),
+      );
+      assert.equal(put._tag, "LinxResourcePathError");
     }),
   ),
 );

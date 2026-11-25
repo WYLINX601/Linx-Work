@@ -84,7 +84,7 @@ it.effect("rolls back the binding when the command id is already used", () =>
   ),
 );
 
-it.effect("updates sent and failed outbox states without touching the binding", () =>
+it.effect("a late failure cannot downgrade a sent launch", () =>
   withRepository(() =>
     Effect.gen(function* () {
       const repository = yield* ThreadBindingRepository;
@@ -93,11 +93,8 @@ it.effect("updates sent and failed outbox states without touching the binding", 
       const sent = yield* repository.getOutbox(input.idempotencyKey);
       assert.equal(sent?.state, "sent");
       assert.equal((yield* repository.getBinding(input.threadId))?.runId, "run-1");
-      yield* repository.markFailed(input.idempotencyKey, "timeout", 2);
-      const failed = yield* repository.getOutbox(input.idempotencyKey);
-      assert.equal(failed?.state, "failed");
-      assert.equal(failed?.attempts, 2);
-      assert.equal(failed?.lastError, "timeout");
+      yield* repository.markFailed(input.idempotencyKey, "invalid_request");
+      assert.deepEqual(yield* repository.getOutbox(input.idempotencyKey), sent);
     }),
   ),
 );

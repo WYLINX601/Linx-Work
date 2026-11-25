@@ -124,12 +124,10 @@ export class ThreadBindingRepository extends Context.Service<
     readonly markFailed: (
       idempotencyKey: string,
       lastError: string,
-      attempts: number,
     ) => Effect.Effect<void, LinxStorageError | SqlError.SqlError>;
     readonly markPending: (
       idempotencyKey: string,
       lastError: string,
-      attempts: number,
     ) => Effect.Effect<void, LinxStorageError | SqlError.SqlError>;
   }
 >()("t3/linx/thread/ThreadBindingRepository") {}
@@ -264,28 +262,25 @@ export const layer = Layer.effect(
     const markFailed = Effect.fn("ThreadBindingRepository.markFailed")(function* (
       idempotencyKey: string,
       lastError: string,
-      attempts: number,
     ) {
       const updatedAt = DateTime.formatIso(yield* DateTime.now);
       yield* sql`
         UPDATE linx_outbox
-        SET state = 'failed', last_error = ${lastError}, attempts = ${attempts},
+        SET state = 'failed', last_error = ${lastError}, attempts = attempts + 1,
             updated_at = ${updatedAt}
-        WHERE idempotency_key = ${idempotencyKey}
+        WHERE idempotency_key = ${idempotencyKey} AND state = 'pending'
       `;
     });
 
     const markPending = Effect.fn("ThreadBindingRepository.markPending")(function* (
       idempotencyKey: string,
       lastError: string,
-      attempts: number,
     ) {
       const updatedAt = DateTime.formatIso(yield* DateTime.now);
       yield* sql`
         UPDATE linx_outbox
-        SET state = 'pending', last_error = ${lastError}, attempts = ${attempts},
-            updated_at = ${updatedAt}
-        WHERE idempotency_key = ${idempotencyKey}
+        SET last_error = ${lastError}, attempts = attempts + 1, updated_at = ${updatedAt}
+        WHERE idempotency_key = ${idempotencyKey} AND state = 'pending'
       `;
     });
 

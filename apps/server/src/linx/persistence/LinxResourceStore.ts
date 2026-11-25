@@ -67,6 +67,16 @@ export const layer = (resourceDir: string) =>
       const path = yield* Path.Path;
       const root = NodePath.resolve(resourceDir);
 
+      const assertDirectory = (directory: string, operation: "put" | "read") =>
+        Effect.try({
+          try: () => NodeFS.lstatSync(directory).isDirectory(),
+          catch: () => failPath(operation, "missing-directory"),
+        }).pipe(
+          Effect.flatMap((valid) =>
+            valid ? Effect.void : Effect.fail(failPath(operation, "not-a-directory")),
+          ),
+        );
+
       const put = Effect.fn("LinxResourceStore.put")(function* (input: {
         readonly kind: string;
         readonly bytes: Uint8Array;
@@ -83,16 +93,15 @@ export const layer = (resourceDir: string) =>
         const absolute = resolveInside(root, relativePath);
         if (absolute === null) return yield* failPath("put", "path-escape");
 
-        yield* fileSystem.makeDirectory(path.dirname(absolute), { recursive: true });
-
-        const existing = yield* fileSystem.stat(absolute).pipe(Effect.option);
-        if (existing._tag === "Some") {
-          if (existing.value.type !== "File") return yield* failPath("put", "not-a-file");
-          const actual = yield* Effect.try({
-            try: () => sha256(NodeFS.readFileSync(absolute)),
-            catch: () => failPath("put", "existing-unreadable"),
-          });
-          if (actual !== hash) return yield* failPath("put", "hash-mismatch");
+        yield* assertDirectory(root, "put");
+        const kindDir = path.join(root, input.kind);
+        const shardDir = path.dirname(absolute);
+        for (const directory of [kindDir, shardDir]) {
+          yield* fileSystem.makeDirectory(directory, { recursive: true });
+          yield* assertDirectory(directory, "put");
+        }
+        if (yield* fileSystem.exists(absolute)) {
+          yield* read(relativePath);
           return { relativePath, sha256: hash };
         }
 
@@ -107,13 +116,7 @@ export const layer = (resourceDir: string) =>
             Effect.as(true),
             Effect.orElseSucceed(() => false),
           );
-          if (!linked) {
-            const current = yield* Effect.try({
-              try: () => sha256(NodeFS.readFileSync(absolute)),
-              catch: () => failPath("put", "existing-unreadable"),
-            });
-            if (current !== hash) return yield* failPath("put", "hash-mismatch");
-          }
+          if (!linked) yield* read(relativePath);
           return { relativePath, sha256: hash };
         });
         return yield* write.pipe(
@@ -124,6 +127,7 @@ export const layer = (resourceDir: string) =>
       const read = Effect.fn("LinxResourceStore.read")(function* (relativePath: string) {
         const match = RELATIVE_PATH_PATTERN.exec(relativePath);
         if (match === null) return yield* failPath("read", "invalid-path");
+        if (match[2] !== match[3]?.slice(0, 2)) return yield* failPath("read", "invalid-path");
         const absolute = resolveInside(root, relativePath);
         if (absolute === null) return yield* failPath("read", "path-escape");
 
@@ -134,6 +138,7 @@ export const layer = (resourceDir: string) =>
         if (info.isSymbolicLink()) return yield* failPath("read", "symlink");
         if (!info.isFile()) return yield* failPath("read", "not-a-file");
 
+        yield* assertDirectory(root, "read");
         const realRoot = yield* Effect.try({
           try: () => NodeFS.realpathSync(root),
           catch: () => failPath("read", "root-unreadable"),
@@ -142,14 +147,14 @@ export const layer = (resourceDir: string) =>
           try: () => NodeFS.realpathSync(absolute),
           catch: () => failPath("read", "missing"),
         });
-        if (!realFile.startsWith(`${realRoot}${NodePath.sep}`)) {
-          return yield* failPath("read", "path-escape");
+        if (realFile !== NodePath.resolve(realRoot, relativePath)) {
+          return yield* failPath("read", "symlink");
         }
 
         const bytes = yield* Effect.tryPromise({
           try: () => NodeFS.promises.readFile(absolute),
           catch: () => failPath("read", "missing"),
-        }).pipe(Effect.map((value) => new Uint8Array(value)));
+        });
         if (sha256(bytes) !== match[3]) return yield* failPath("read", "hash-mismatch");
         return bytes;
       });

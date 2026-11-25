@@ -4,9 +4,11 @@ import * as NodeCrypto from "node:crypto";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 
 import {
   type LinxFailure,
+  LinxFailureCode,
   type LinxLaunchThreadInput,
   type LinxLaunchThreadResult,
   MessageId,
@@ -59,6 +61,10 @@ const failure = (code: LinxFailure["code"], message: string, threadId?: string):
 
 const retryable = (code: LinxFailure["code"]): boolean =>
   code === "provider_unavailable" || code === "launch_failed";
+
+const isFailureCode = Schema.is(LinxFailureCode);
+const terminalFailure = (code: LinxFailure["code"], threadId: string) =>
+  failure(code, "The thread launch was rejected.", threadId);
 
 export class LinxLaunchService extends Context.Service<
   LinxLaunchService,
@@ -128,13 +134,15 @@ export const layer = Layer.effect(
       }
       if (bound.outbox.state === "failed") {
         return yield* Effect.fail(
-          failure(
-            "launch_failed",
-            bound.outbox.lastError ?? "The previous launch failed.",
+          terminalFailure(
+            isFailureCode(bound.outbox.lastError) ? bound.outbox.lastError : "launch_failed",
             threadId,
           ),
         );
       }
+      const recordError = Effect.mapError(() =>
+        failure("launch_failed", "The launch outcome could not be persisted.", threadId),
+      );
 
       const outcome = yield* launcher
         .launch({
@@ -147,20 +155,15 @@ export const layer = Layer.effect(
 
       if (outcome._tag === "Failure") {
         const launchFailure = outcome.failure;
-        const attempts = bound.outbox.attempts + 1;
         if (retryable(launchFailure.code)) {
-          yield* bindings
-            .markPending(input.clientRequestId, launchFailure.code, attempts)
-            .pipe(Effect.ignore);
-        } else {
-          yield* bindings
-            .markFailed(input.clientRequestId, launchFailure.code, attempts)
-            .pipe(Effect.ignore);
+          yield* bindings.markPending(input.clientRequestId, launchFailure.code).pipe(recordError);
+          return yield* Effect.fail(launchFailure);
         }
-        return yield* Effect.fail(launchFailure);
+        yield* bindings.markFailed(input.clientRequestId, launchFailure.code).pipe(recordError);
+        return yield* Effect.fail(terminalFailure(launchFailure.code, threadId));
       }
 
-      yield* bindings.markSent(input.clientRequestId, outcome.success.runId).pipe(Effect.ignore);
+      yield* bindings.markSent(input.clientRequestId, outcome.success.runId).pipe(recordError);
       return {
         threadId: ThreadId.make(threadId),
         snapshotId: snapshot.snapshotId,

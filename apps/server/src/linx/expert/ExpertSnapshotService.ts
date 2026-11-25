@@ -6,6 +6,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as SqlError from "effect/sql/SqlError";
+import type { LinxExpertSummary } from "@t3tools/contracts";
 
 import {
   LinxSnapshotConflictError,
@@ -111,6 +112,11 @@ const toSnapshot = (row: SnapshotRow): LinxExpertSnapshot => ({
   createdAt: row.created_at,
 });
 
+const verifiedSnapshot = (row: SnapshotRow) =>
+  sha256(row.content_json) === row.content_hash
+    ? Effect.succeed(toSnapshot(row))
+    : Effect.fail(new LinxSnapshotIntegrityError({ snapshotId: row.snapshot_id }));
+
 export class ExpertSnapshotService extends Context.Service<
   ExpertSnapshotService,
   {
@@ -125,6 +131,10 @@ export class ExpertSnapshotService extends Context.Service<
     ) => Effect.Effect<
       LinxExpertSnapshot | null,
       LinxSnapshotIntegrityError | LinxStorageError | SqlError.SqlError
+    >;
+    readonly listLatest: () => Effect.Effect<
+      ReadonlyArray<LinxExpertSummary>,
+      LinxSnapshotIntegrityError | SqlError.SqlError
     >;
   }
 >()("t3/linx/expert/ExpertSnapshotService") {}
@@ -157,7 +167,7 @@ export const layer = Layer.effect(
             revision: input.revision,
           });
         }
-        return toSnapshot(existing[0]);
+        return yield* verifiedSnapshot(existing[0]);
       }
 
       const inserted = yield* sql`
@@ -188,7 +198,7 @@ export const layer = Layer.effect(
           revision: input.revision,
         });
       }
-      return toSnapshot(row);
+      return yield* verifiedSnapshot(row);
     });
 
     const getById = Effect.fn("ExpertSnapshotService.getById")(function* (snapshotId: string) {
@@ -199,12 +209,35 @@ export const layer = Layer.effect(
       `;
       const row = rows[0];
       if (row === undefined) return null;
-      if (sha256(row.content_json) !== row.content_hash) {
-        return yield* new LinxSnapshotIntegrityError({ snapshotId });
-      }
-      return toSnapshot(row);
+      return yield* verifiedSnapshot(row);
     });
 
-    return ExpertSnapshotService.of({ create, getById });
+    const listLatest = Effect.fn("ExpertSnapshotService.listLatest")(function* () {
+      const rows = yield* sql<SnapshotRow>`
+        SELECT snapshot_id, expert_id, revision, content_json, content_hash, created_at
+        FROM expert_snapshots AS snapshot
+        INNER JOIN (
+          SELECT expert_id AS expert, MAX(revision) AS latest
+          FROM expert_snapshots
+          GROUP BY expert_id
+        ) ON snapshot.expert_id = expert AND snapshot.revision = latest
+        ORDER BY snapshot.expert_id
+      `;
+      const summaries: LinxExpertSummary[] = [];
+      for (const row of rows) {
+        const { expertId, snapshotId, revision, contentHash, persona } =
+          yield* verifiedSnapshot(row);
+        summaries.push({
+          expertId,
+          snapshotId,
+          revision,
+          contentHash,
+          personaPreview: persona.slice(0, 160),
+        });
+      }
+      return summaries;
+    });
+
+    return ExpertSnapshotService.of({ create, getById, listLatest });
   }),
 );

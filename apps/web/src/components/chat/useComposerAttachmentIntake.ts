@@ -72,6 +72,7 @@ export function useComposerAttachmentIntake(input: {
   readonly activePendingIsResponding: boolean;
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
   readonly supportsQuestionAttachments: boolean;
+  readonly attachmentsBlockedReason?: string | undefined;
   readonly isLiteralPendingAnswer: boolean;
   readonly projectSelectionRequired: boolean;
   readonly questionAttachmentTarget: DraftId | null;
@@ -100,6 +101,7 @@ export function useComposerAttachmentIntake(input: {
     activePendingIsResponding,
     pendingUserInputs,
     supportsQuestionAttachments,
+    attachmentsBlockedReason,
     isLiteralPendingAnswer,
     projectSelectionRequired,
     questionAttachmentTarget,
@@ -132,6 +134,10 @@ export function useComposerAttachmentIntake(input: {
     },
   ): Promise<boolean> => {
     if (!activeThreadId || files.length === 0 || isRevertingCheckpointRef.current) return false;
+    if (attachmentsBlockedReason) {
+      toastManager.add({ type: "error", title: attachmentsBlockedReason });
+      return false;
+    }
     if (
       pendingUserInputs.length > 0 &&
       (!supportsQuestionAttachments ||
@@ -453,7 +459,7 @@ export function useComposerAttachmentIntake(input: {
     bypassAutoAttachment: boolean,
     selectionOverride?: { start: number; end: number },
   ): boolean => {
-    if (isLiteralPendingAnswer) return false;
+    if (isLiteralPendingAnswer || attachmentsBlockedReason) return false;
     const questionCanAttach =
       pendingUserInputs.length === 0 ||
       (supportsQuestionAttachments &&

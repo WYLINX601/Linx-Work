@@ -54,6 +54,15 @@ export const LinxExpertSnapshot = Schema.Struct({
 });
 export type LinxExpertSnapshot = typeof LinxExpertSnapshot.Type;
 
+export const LinxExpertSummary = Schema.Struct({
+  expertId: LinxExpertSnapshot.fields.expertId,
+  snapshotId: LinxExpertSnapshot.fields.snapshotId,
+  revision: LinxExpertSnapshot.fields.revision,
+  contentHash: LinxExpertSnapshot.fields.contentHash,
+  personaPreview: Schema.String,
+});
+export type LinxExpertSummary = typeof LinxExpertSummary.Type;
+
 export const LinxLaunchThreadInput = Schema.Struct({
   clientRequestId: TrimmedNonEmptyString,
   snapshotId: TrimmedNonEmptyString,
@@ -63,9 +72,7 @@ export const LinxLaunchThreadInput = Schema.Struct({
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
-  initialMessage: Schema.Struct({
-    text: Schema.String,
-  }),
+  initialMessage: Schema.Struct({ text: Schema.String }),
 });
 export type LinxLaunchThreadInput = typeof LinxLaunchThreadInput.Type;
 
@@ -79,6 +86,8 @@ export type LinxLaunchThreadResult = typeof LinxLaunchThreadResult.Type;
 export const LinxThreadBinding = Schema.Struct({
   threadId: ThreadId,
   snapshotId: TrimmedNonEmptyString,
+  expertId: TrimmedNonEmptyString,
+  revision: NonNegativeInt,
   projectId: ProjectId,
   contentHash: Sha256Hex,
   createdAt: TrimmedNonEmptyString,

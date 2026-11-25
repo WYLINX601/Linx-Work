@@ -45,7 +45,16 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
-import { IsoDateTime, NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { IsoDateTime, NonNegativeInt, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import {
+  LinxCreateSnapshotInput,
+  LinxExpertSnapshot,
+  LinxExpertSummary,
+  LinxFailure,
+  LinxLaunchThreadInput,
+  LinxLaunchThreadResult,
+  LinxThreadBinding,
+} from "./linx.ts";
 import { SecretSourceCheckResult } from "./settingsSecretValue.ts";
 import { SecretReference } from "./secretReference.ts";
 import {
@@ -737,6 +746,10 @@ export const WS_METHODS = {
   subscribeServerLifecycle: "subscribeServerLifecycle",
   subscribeAuthAccess: "subscribeAuthAccess",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
+  linxExpertsCreateSnapshot: "linx.experts.createSnapshot",
+  linxExpertsList: "linx.experts.list",
+  linxThreadsLaunch: "linx.threads.launch",
+  linxThreadsGetBinding: "linx.threads.getBinding",
 } as const;
 
 const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -2458,7 +2471,30 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
-export const WsRpcGroup = RpcGroup.make(
+export const LinxWsRpcGroup = RpcGroup.make(
+  Rpc.make(WS_METHODS.linxExpertsCreateSnapshot, {
+    payload: LinxCreateSnapshotInput,
+    success: LinxExpertSnapshot,
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxExpertsList, {
+    payload: {},
+    success: Schema.Array(LinxExpertSummary),
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxThreadsLaunch, {
+    payload: LinxLaunchThreadInput,
+    success: LinxLaunchThreadResult,
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxThreadsGetBinding, {
+    payload: { threadId: ThreadId },
+    success: Schema.NullOr(LinxThreadBinding),
+    error: LinxFailure,
+  }),
+).middleware(RpcScopeAuthorization);
+
+export const T3WsRpcGroup = RpcGroup.make(
   WsIssuesListRpc,
   WsIssuesDetailRpc,
   WsIssuesCommentsRpc,
@@ -2717,3 +2753,5 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SubscribeCommandOutputRpc,
   WsOrchestrationV2SubscribePromptSuggestionRpc,
 ).middleware(RpcScopeAuthorization);
+
+export const WsRpcGroup = T3WsRpcGroup.merge(LinxWsRpcGroup);

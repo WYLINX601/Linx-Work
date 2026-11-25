@@ -375,6 +375,7 @@ export interface ChatComposerProps {
   canOperateThread: boolean;
   attachmentUploadsCapabilityKnown: boolean;
   supportsAttachmentUploads: boolean;
+  attachmentsBlockedReason?: string | undefined;
   supportsQuestionAttachments: boolean;
   maxFileAttachmentBytes: number | null;
   routeKind: "server" | "draft";
@@ -529,6 +530,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     canOperateThread,
     attachmentUploadsCapabilityKnown,
     supportsAttachmentUploads,
+    attachmentsBlockedReason,
     supportsQuestionAttachments,
     maxFileAttachmentBytes,
     routeKind,
@@ -1276,6 +1278,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const showComposerTopDrawer = pendingUserInputs.length > 0;
   const showCollapsedMobilePromptRow = isComposerCollapsedMobile;
   const showComposerAttachAction =
+    attachmentsBlockedReason === undefined &&
     fileStagingLimit !== null &&
     (!activePendingProgress ||
       (supportsQuestionAttachments &&
@@ -2908,6 +2911,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       activePendingIsResponding,
       pendingUserInputs,
       supportsQuestionAttachments,
+      attachmentsBlockedReason,
       isLiteralPendingAnswer,
       projectSelectionRequired,
       questionAttachmentTarget,

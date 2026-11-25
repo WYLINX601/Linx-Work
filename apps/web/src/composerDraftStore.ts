@@ -22,6 +22,8 @@ import {
   PreviewAnnotationPayloadSchema,
   PastedTextAttachmentSource,
   type PreviewAnnotationPayload,
+  type LinxExpertSummary,
+  type LinxLaunchThreadInput,
   RuntimeMode,
   ThreadContextRecord,
   EnvironmentContextRecord,
@@ -463,6 +465,12 @@ export type ComposerContextInsertionHandler = (
 ) => boolean;
 const contextInsertionHandlers = new Map<string, ComposerContextInsertionHandler>();
 
+export interface LinxDraftLaunch {
+  readonly environmentId: EnvironmentId;
+  readonly expert: Omit<LinxExpertSummary, "personaPreview">;
+  readonly attempt: LinxLaunchThreadInput | null;
+}
+
 export interface ComposerThreadDraftState {
   prompt: string;
   images: ComposerImageAttachment[];
@@ -481,6 +489,8 @@ export interface ComposerThreadDraftState {
   modelSelectionExplicit?: boolean;
   runtimeMode: RuntimeMode | null;
   interactionMode: ProviderInteractionMode | null;
+  /** Only the open draft owns the pending launch; never persisted with browser state. */
+  linxLaunch?: LinxDraftLaunch;
 }
 
 export function composerDraftHasUserContent(
@@ -643,6 +653,7 @@ interface ComposerDraftStoreState {
   clearDraftThread: (threadRef: ComposerThreadTarget) => void;
   setStickyModelSelection: (modelSelection: ModelSelection | null | undefined) => void;
   setPrompt: (threadRef: ComposerThreadTarget, prompt: string) => void;
+  setLinxLaunch: (threadRef: ComposerThreadTarget, launch: LinxDraftLaunch | null) => void;
   setTerminalContexts: (threadRef: ComposerThreadTarget, contexts: TerminalContextDraft[]) => void;
   setModelSelection: (
     threadRef: ComposerThreadTarget,
@@ -1040,7 +1051,8 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
     Object.keys(draft.modelSelectionByProvider).length === 0 &&
     draft.activeProvider === null &&
     draft.runtimeMode === null &&
-    draft.interactionMode === null
+    draft.interactionMode === null &&
+    draft.linxLaunch === undefined
   );
 }
 
@@ -3330,6 +3342,19 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               nextDraftsByThreadKey[threadKey] = nextDraft;
             }
             return { draftsByThreadKey: nextDraftsByThreadKey };
+          });
+        },
+        setLinxLaunch: (threadRef, launch) => {
+          const threadKey = resolveComposerDraftKey(get(), threadRef);
+          if (threadKey === null) return;
+          set((state) => {
+            const current = state.draftsByThreadKey[threadKey] ?? createEmptyThreadDraft();
+            const { linxLaunch: _previous, ...rest } = current;
+            const next = launch === null ? rest : { ...rest, linxLaunch: launch };
+            const draftsByThreadKey = { ...state.draftsByThreadKey };
+            if (shouldRemoveDraft(next)) delete draftsByThreadKey[threadKey];
+            else draftsByThreadKey[threadKey] = next;
+            return { draftsByThreadKey };
           });
         },
         setTerminalContexts: (threadRef, contexts) => {

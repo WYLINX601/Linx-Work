@@ -269,6 +269,10 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeServerConfig]: "server",
   [WS_METHODS.subscribeServerLifecycle]: "server",
   [WS_METHODS.subscribeAuthAccess]: "auth",
+  [WS_METHODS.linxExpertsCreateSnapshot]: "linx",
+  [WS_METHODS.linxExpertsList]: "linx",
+  [WS_METHODS.linxThreadsLaunch]: "linx",
+  [WS_METHODS.linxThreadsGetBinding]: "linx",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";
