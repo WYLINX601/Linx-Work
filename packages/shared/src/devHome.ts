@@ -5,8 +5,6 @@ import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 
-import { LINX_HOME_DIR_NAME } from "./linxIdentity.ts";
-
 // Match worktrees/<name>; bare repos and GIT_COMMON_DIR need not use a directory named .git.
 const pointsAtLinkedWorktree = (gitFileContents: string, path: Path.Path): boolean => {
   const gitdir = gitFileContents
@@ -64,5 +62,5 @@ export const resolveWorktreeLinxHome = Effect.fn("devHome.resolveWorktreeLinxHom
     return undefined;
   }
   const path = yield* Path.Path;
-  return path.join(worktreePath, LINX_HOME_DIR_NAME);
+  return path.join(worktreePath, ".linx");
 });

@@ -335,8 +335,8 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
   };
 
   const path = yield* Path.Path;
-  // The server stores an explicit home's state in userdata, which for ~/.linx is the live
-  // install. Left implicit, dev state goes to ~/.linx/dev.
+  // An explicit home selects userdata, which would point at production for the default home.
+  // Leave it implicit in that case so development gets its own state directory.
   const isLiveHome =
     resolvedBaseDir === path.join(yield* HostProcess.HomeDirectory, LINX_HOME_DIR_NAME);
   if (configuredBaseDir !== undefined && !isLiveHome) {

@@ -140,9 +140,9 @@ const withIdentity = <A, E, R>(
 
 describe("DesktopAppIdentity", () => {
   it.effect.each([
-    { profile: "linx", environment: {} },
+    { profile: "linxworkos", environment: {} },
     {
-      profile: "linx-dev",
+      profile: "linxworkos-dev",
       environment: { env: { VITE_DEV_SERVER_URL: "http://localhost:5173" } },
     },
   ])("uses the $profile user data profile", ({ profile, environment }) =>
@@ -181,9 +181,9 @@ describe("DesktopAppIdentity", () => {
 
         const runtimeName = calls.setName[0];
         assert.isDefined(runtimeName);
-        assert.equal(runtimeName, `Linx ${stage}`);
+        assert.equal(runtimeName, `LinxWorkOS ${stage}`);
         assert.match(runtimeName.replaceAll(" ", ""), /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/);
-        assert.equal(calls.setAboutPanelOptions[0]?.applicationName, `Linx (${stage})`);
+        assert.equal(calls.setAboutPanelOptions[0]?.applicationName, `LinxWorkOS (${stage})`);
       }),
       { calls, environment },
     );

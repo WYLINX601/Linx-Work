@@ -549,9 +549,9 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         assert.equal(yield* homeFor("~someone/t3-dev"), path.resolve("~someone/t3-dev"));
         assert.equal(yield* homeFor("relative/t3-dev"), path.resolve("relative/t3-dev"));
         assert.equal(yield* homeFor("/tmp/t3-dev"), path.resolve("/tmp/t3-dev"));
-        // An explicit ~/.linx would put state in the live userdata; leaving it implicit selects ~/.linx/dev.
-        assert.equal(yield* homeFor("~/.linx"), undefined);
-        assert.equal(yield* homeFor("/home/dev/.linx/"), undefined);
+        // An explicit ~/.linxworkos would reach production userdata; leave it implicit for dev.
+        assert.equal(yield* homeFor("~/.linxworkos"), undefined);
+        assert.equal(yield* homeFor("/home/dev/.linxworkos/"), undefined);
         assert.equal(yield* homeFor("~/.t3"), path.join("/home/dev", ".t3"));
         assert.equal(yield* homeFor("/home/dev/.t3/"), path.join("/home/dev", ".t3"));
       }),
@@ -849,13 +849,13 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         }).pipe(Effect.scoped),
       );
 
-      it.effect("seeds a worktree database from ~/.linx only when it has none", () =>
+      it.effect("seeds a worktree database from the LinxWorkOS home only when it has none", () =>
         Effect.gen(function* () {
           const path = yield* Path.Path;
           const root = yield* makeWorktree;
           const home = path.join(root, "home");
-          NodeFS.mkdirSync(path.join(home, ".linx", "userdata"), { recursive: true });
-          NodeFS.writeFileSync(path.join(home, ".linx", "userdata", "statev2.sqlite"), "");
+          NodeFS.mkdirSync(path.join(home, ".linxworkos", "userdata"), { recursive: true });
+          NodeFS.writeFileSync(path.join(home, ".linxworkos", "userdata", "statev2.sqlite"), "");
 
           const spawnedArgs = (seed: boolean | undefined) =>
             Effect.gen(function* () {
@@ -908,7 +908,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             const path = yield* Path.Path;
             const root = yield* makeWorktree;
             const home = path.join(root, "home");
-            const source = path.join(home, ".linx", "userdata", "statev2.sqlite");
+            const source = path.join(home, ".linxworkos", "userdata", "statev2.sqlite");
             NodeFS.mkdirSync(path.dirname(source), { recursive: true });
             NodeFS.writeFileSync(source, "");
             const spawned: Array<ReadonlyArray<string>> = [];

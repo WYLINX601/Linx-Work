@@ -63,7 +63,7 @@ node scripts/linx/verify-baseline.ts --allow-dirty   # 开发中跳过工作树�
 
 ## 身份与隔离
 
-见 [identity.md](identity.md)。默认值：
+以下为 P0 验收时的默认值；当前路径见 [identity.md](identity.md)。
 
 | 项               | Linx                | 上游 T3 Code               | Synara                        |
 | ---------------- | ------------------- | -------------------------- | ----------------------------- |

@@ -60,7 +60,7 @@ describe("DesktopEnvironment", () => {
     }),
   );
 
-  it.effect("keeps implicit development state separate from production state", () =>
+  it.effect("keeps LinxWorkOS state separate from legacy Linx and from its own dev state", () =>
     Effect.gen(function* () {
       const development = yield* makeEnvironment(
         {},
@@ -68,8 +68,8 @@ describe("DesktopEnvironment", () => {
       );
       const production = yield* makeEnvironment();
 
-      assert.equal(development.stateDir, "/Users/alice/.linx/dev");
-      assert.equal(production.stateDir, "/Users/alice/.linx/userdata");
+      assert.equal(development.stateDir, "/Users/alice/.linxworkos/dev");
+      assert.equal(production.stateDir, "/Users/alice/.linxworkos/userdata");
       assert.equal(development.appUserModelId, "com.linx.work.dev");
       assert.equal(production.appUserModelId, "com.linx.work");
       assert.equal(production.branding.baseName, "LinxWorkOS");

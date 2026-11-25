@@ -9,8 +9,8 @@
 | 产品名                  | `LinxWorkOS`                                          | `T3 Code`                                                       | `Synara`                      |
 | App ID                  | `com.linx.work`                                       | `com.t3tools.t3code`                                            | `com.emanueledipietro.synara` |
 | URL Scheme              | `linx` / `linx-dev`                                   | `t3code` / `t3code-dev`                                         | —                             |
-| Home                    | `~/.linx`                                             | `~/.t3`                                                         | `~/.synara`                   |
-| UserData                | `linx` / `linx-dev`                                   | `t3code-v2` / `t3code-dev`                                      | `synara-*`                    |
+| Home                    | `~/.linxworkos`                                       | `~/.t3`                                                         | `~/.synara`                   |
+| UserData                | `linxworkos` / `linxworkos-dev`                       | `t3code-v2` / `t3code-dev`                                      | `synara-*`                    |
 | Server 端口             | `3774`                                                | `3773`                                                          | `3773`                        |
 | Dev server / web        | `13774` / `5734`                                      | `13773` / `5733`                                                | —                             |
 | Linux desktop entry     | `com.linx.work.desktop`                               | `com.t3tools.T3Code.desktop`                                    | —                             |
@@ -20,19 +20,25 @@
 
 本地 macOS 预览包使用临时签名（ad-hoc），不含 Developer ID、公证或自动更新源。
 
+### 旧版 Linx 的对话
+
+旧版 `Linx.app` 的 `~/.linx/userdata/state.sqlite` 使用不同的 SQLite 迁移历史，不是 LinxWorkOS 支持直接升级的 T3 V1 库。LinxWorkOS 默认在 `~/.linxworkos/userdata` 创建自己的数据，不会读取或导入旧库。此前失败启动留下的 `~/.linx/userdata/statev2.sqlite` 是导入副本，不代表迁移完成。
+
+用旧版 `Linx.app` 查看历史。不要将 `T3CODE_HOME` 指向 `~/.linx`，不要复制旧库到新目录，也不要修改迁移记录来绕过检查。
+
 ## Keychain / safeStorage
 
 桌面端使用 Electron `safeStorage`，密钥条目由 **应用名 + `app.getPath("userData")`** 决定：
 
 - 显示名：`LinxWorkOS (Beta)` / `LinxWorkOS (Nightly)` / `LinxWorkOS (Dev)`；macOS 预览安装包为 `LinxWorkOS.app`。
-- UserData：`~/Library/Application Support/linx`（prod）或 `linx-dev`（dev）。
+- UserData：`~/Library/Application Support/linxworkos`（prod）或 `linxworkos-dev`（dev）。
 - 上游 T3 Code 的 `t3code-v2` / `T3 Code (Dev)` 不再被读取或迁移。
 
 手工核对（macOS）：
 
 ```sh
 security dump-keychain | grep -i "LinxWorkOS Safe Storage"
-ls -d "$HOME/Library/Application Support/linx" "$HOME/Library/Application Support/linx-dev"
+ls -d "$HOME/Library/Application Support/linxworkos" "$HOME/Library/Application Support/linxworkos-dev"
 ```
 
 不要把 Keychain 内容写入日志、测试夹具或仓库。
@@ -51,10 +57,10 @@ ls -d "$HOME/Library/Application Support/linx" "$HOME/Library/Application Suppor
 ```sh
 # Linx
 vp run dev:server            # 默认 13774
-ls -d ~/.linx
+ls -d ~/.linxworkos
 
 # Synara（独立仓库）
-# 默认 3773；不得指向 ~/.linx
+# 默认 3773；不得指向 LinxWorkOS 或旧版 Linx 的数据目录。
 ```
 
 判定：端口不冲突；Home、UserData、Scheme、App ID 均不同；Linx 不读取 Synara 或 T3 Code 目录。

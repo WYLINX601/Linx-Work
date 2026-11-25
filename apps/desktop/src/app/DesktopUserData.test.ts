@@ -8,18 +8,26 @@ import * as PlatformError from "effect/PlatformError";
 import { clearStaleGpuCaches, resolveUserDataPath } from "./DesktopUserData.ts";
 
 it.effect.each([
-  { isDevelopment: false, profile: "linx", upstreamProfiles: ["t3code-v2", "T3 Code (Alpha)"] },
-  { isDevelopment: true, profile: "linx-dev", upstreamProfiles: ["t3code-dev", "T3 Code (Dev)"] },
+  {
+    isDevelopment: false,
+    profile: "linxworkos",
+    otherProfiles: ["linx", "t3code-v2", "T3 Code (Alpha)"],
+  },
+  {
+    isDevelopment: true,
+    profile: "linxworkos-dev",
+    otherProfiles: ["linx-dev", "t3code-dev", "T3 Code (Dev)"],
+  },
 ])(
-  "isolates the $profile profile from upstream T3 Code",
-  ({ isDevelopment, profile, upstreamProfiles }) =>
+  "isolates the $profile profile from legacy Linx and upstream T3 Code",
+  ({ isDevelopment, profile, otherProfiles }) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const directory = yield* fs.makeTempDirectoryScoped({ prefix: "linx-profile-" });
-      for (const name of upstreamProfiles) {
+      for (const name of otherProfiles) {
         yield* fs.makeDirectory(path.join(directory, name), { recursive: true });
-        yield* fs.writeFileString(path.join(directory, name, "Local State"), "upstream");
+        yield* fs.writeFileString(path.join(directory, name, "Local State"), "other profile");
       }
       const userDataPath = yield* resolveUserDataPath({
         appDataDirectory: directory,
