@@ -18,6 +18,8 @@
 | Windows 服务目录 / 任务 | `%LOCALAPPDATA%\linx` / `linx-<domain>-<user>`        | `%LOCALAPPDATA%\t3code` / `t3code-*`                            | —                             |
 | 托管策略                | `com.linx.work.policy`、`SOFTWARE\Policies\Linx\Linx` | `com.t3tools.t3code.policy`、`SOFTWARE\Policies\T3Tools\T3Code` | —                             |
 
+本地 macOS 预览包使用临时签名（ad-hoc），不含 Developer ID、公证或自动更新源。
+
 ## Keychain / safeStorage
 
 桌面端使用 Electron `safeStorage`，密钥条目由 **应用名 + `app.getPath("userData")`** 决定：
