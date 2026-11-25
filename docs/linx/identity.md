@@ -6,7 +6,7 @@
 
 | 项                      | Linx                                                  | 上游 T3 Code                                                    | Synara                        |
 | ----------------------- | ----------------------------------------------------- | --------------------------------------------------------------- | ----------------------------- |
-| 产品名                  | `Linx`                                                | `T3 Code`                                                       | `Synara`                      |
+| 产品名                  | `LinxWorkOS`                                          | `T3 Code`                                                       | `Synara`                      |
 | App ID                  | `com.linx.work`                                       | `com.t3tools.t3code`                                            | `com.emanueledipietro.synara` |
 | URL Scheme              | `linx` / `linx-dev`                                   | `t3code` / `t3code-dev`                                         | —                             |
 | Home                    | `~/.linx`                                             | `~/.t3`                                                         | `~/.synara`                   |
@@ -22,14 +22,14 @@
 
 桌面端使用 Electron `safeStorage`，密钥条目由 **应用名 + `app.getPath("userData")`** 决定：
 
-- 应用名：`Linx (Beta)` / `Linx (Nightly)` / `Linx (Dev)`，在 `DesktopAppIdentity.configure` 中设置。
+- 显示名：`LinxWorkOS (Beta)` / `LinxWorkOS (Nightly)` / `LinxWorkOS (Dev)`；macOS 预览安装包为 `LinxWorkOS.app`。
 - UserData：`~/Library/Application Support/linx`（prod）或 `linx-dev`（dev）。
 - 上游 T3 Code 的 `t3code-v2` / `T3 Code (Dev)` 不再被读取或迁移。
 
 手工核对（macOS）：
 
 ```sh
-security dump-keychain | grep -i "Linx Safe Storage"
+security dump-keychain | grep -i "LinxWorkOS Safe Storage"
 ls -d "$HOME/Library/Application Support/linx" "$HOME/Library/Application Support/linx-dev"
 ```
 
@@ -42,7 +42,7 @@ ls -d "$HOME/Library/Application Support/linx" "$HOME/Library/Application Suppor
 - `T3CODE_*` 环境变量：upstream 兼容接口。显式设置时优先于 Linx 默认值。
 - CLI 可执行名 `t3` 与 launcher 内部参数 `--t3code-dev-root`：改名会扩散到打包与文档，单独评估。
 - 遥测 service name（`t3code-server`、`t3code` namespace）：不影响本地状态隔离。
-- UI 文案、图标、营销页、移动端商店配置：需要 Linx 品牌资产与签名账号，未进入 P0.2。
+- 运行时工具名称、图标、营销页及移动端商店配置不随 macOS 安装包改名。
 
 ## 并行启动核对
 

@@ -169,7 +169,7 @@ describe("DesktopPreReadyPlatform", () => {
         const identity = yield* Effect.promise(() => portalIdentity);
         assert.equal(identity.desktopName, "com.linx.work.desktop");
         assert.include(identity.desktopEntry ?? "", "Exec=/Applications/current.AppImage %U");
-        assert.include(identity.desktopEntry ?? "", "Name=Linx (Beta)");
+        assert.include(identity.desktopEntry ?? "", "Name=LinxWorkOS (Beta)");
         assert.include(identity.desktopEntry ?? "", "MimeType=x-scheme-handler/linx;");
         assert.include(identity.desktopEntry ?? "", "Icon=/xdg/icons/com.linx.work.desktop.png");
         assert.equal(

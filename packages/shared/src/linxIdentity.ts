@@ -6,7 +6,7 @@
  * URL schemes, ports, or app identifiers.
  */
 
-export const LINX_APP_BASE_NAME = "Linx";
+export const LINX_APP_BASE_NAME = "LinxWorkOS";
 export const LINX_APP_SLUG = "linx";
 
 export const LINX_HOME_DIR_NAME = ".linx";

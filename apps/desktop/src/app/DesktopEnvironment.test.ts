@@ -72,8 +72,8 @@ describe("DesktopEnvironment", () => {
       assert.equal(production.stateDir, "/Users/alice/.linx/userdata");
       assert.equal(development.appUserModelId, "com.linx.work.dev");
       assert.equal(production.appUserModelId, "com.linx.work");
-      assert.equal(production.branding.baseName, "Linx");
-      assert.equal(production.branding.displayName, "Linx (Beta)");
+      assert.equal(production.branding.baseName, "LinxWorkOS");
+      assert.equal(production.branding.displayName, "LinxWorkOS (Beta)");
     }),
   );
 });
