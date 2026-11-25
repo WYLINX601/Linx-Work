@@ -56,12 +56,93 @@ export type LinxExpertSnapshot = typeof LinxExpertSnapshot.Type;
 
 export const LinxExpertSummary = Schema.Struct({
   expertId: LinxExpertSnapshot.fields.expertId,
+  title: TrimmedNonEmptyString,
   snapshotId: LinxExpertSnapshot.fields.snapshotId,
   revision: LinxExpertSnapshot.fields.revision,
   contentHash: LinxExpertSnapshot.fields.contentHash,
   personaPreview: Schema.String,
 });
 export type LinxExpertSummary = typeof LinxExpertSummary.Type;
+
+export const LinxExpertDefinitionSummary = Schema.Struct({
+  expertId: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString,
+  currentRevision: NonNegativeInt,
+  snapshotId: TrimmedNonEmptyString,
+  contentHash: Sha256Hex,
+  archived: Schema.Boolean,
+  updatedAt: TrimmedNonEmptyString,
+});
+export type LinxExpertDefinitionSummary = typeof LinxExpertDefinitionSummary.Type;
+
+export const LinxExpertDefinition = Schema.Struct({
+  ...LinxExpertDefinitionSummary.fields,
+  persona: Schema.String,
+  references: Schema.Array(LinxSnapshotReference),
+  skillSelection: Schema.Array(LinxSnapshotSkillSelection),
+  mcpGrants: Schema.Array(LinxSnapshotMcpGrant),
+  createdAt: TrimmedNonEmptyString,
+});
+export type LinxExpertDefinition = typeof LinxExpertDefinition.Type;
+
+export const LinxSaveExpertInput = Schema.Struct({
+  expertId: Schema.optionalKey(TrimmedNonEmptyString),
+  expectedRevision: Schema.optionalKey(NonNegativeInt),
+  title: TrimmedNonEmptyString,
+  persona: Schema.String,
+  references: Schema.Array(LinxSnapshotReference),
+  skillSelection: Schema.Array(LinxSnapshotSkillSelection),
+  mcpGrants: Schema.Array(LinxSnapshotMcpGrant),
+});
+export type LinxSaveExpertInput = typeof LinxSaveExpertInput.Type;
+
+export const LinxArchiveExpertInput = Schema.Struct({
+  expertId: TrimmedNonEmptyString,
+  expectedRevision: NonNegativeInt,
+});
+export type LinxArchiveExpertInput = typeof LinxArchiveExpertInput.Type;
+
+export const LinxSkillPackageRevision = Schema.Struct({
+  packageId: TrimmedNonEmptyString,
+  revision: NonNegativeInt,
+  contentHash: Sha256Hex,
+  name: TrimmedNonEmptyString,
+  version: TrimmedNonEmptyString,
+  entryPath: TrimmedNonEmptyString,
+  fileCount: NonNegativeInt,
+  totalBytes: NonNegativeInt,
+  license: Schema.String,
+  source: TrimmedNonEmptyString,
+  createdAt: TrimmedNonEmptyString,
+});
+export type LinxSkillPackageRevision = typeof LinxSkillPackageRevision.Type;
+
+export const LinxSkillPackageSummary = Schema.Struct({
+  packageId: TrimmedNonEmptyString,
+  name: TrimmedNonEmptyString,
+  currentRevision: NonNegativeInt,
+  contentHash: Sha256Hex,
+  archived: Schema.Boolean,
+  updatedAt: TrimmedNonEmptyString,
+});
+export type LinxSkillPackageSummary = typeof LinxSkillPackageSummary.Type;
+
+export const LinxSkillPackageDetail = Schema.Struct({
+  ...LinxSkillPackageSummary.fields,
+  revisions: Schema.Array(LinxSkillPackageRevision),
+});
+export type LinxSkillPackageDetail = typeof LinxSkillPackageDetail.Type;
+
+export const LinxImportSkillInput = Schema.Struct({
+  path: TrimmedNonEmptyString,
+});
+export type LinxImportSkillInput = typeof LinxImportSkillInput.Type;
+
+export const LinxArchiveSkillInput = Schema.Struct({
+  packageId: TrimmedNonEmptyString,
+  expectedRevision: NonNegativeInt,
+});
+export type LinxArchiveSkillInput = typeof LinxArchiveSkillInput.Type;
 
 export const LinxLaunchThreadInput = Schema.Struct({
   clientRequestId: TrimmedNonEmptyString,
@@ -97,11 +178,16 @@ export type LinxThreadBinding = typeof LinxThreadBinding.Type;
 export const LinxFailureCode = Schema.Literals([
   "invalid_request",
   "idempotency_conflict",
+  "not_found",
+  "revision_conflict",
+  "dependency_missing",
+  "limit_exceeded",
   "snapshot_missing",
   "snapshot_integrity",
   "binding_missing",
   "launch_failed",
   "provider_unavailable",
+  "unsupported",
   "forbidden",
 ]);
 export type LinxFailureCode = typeof LinxFailureCode.Type;

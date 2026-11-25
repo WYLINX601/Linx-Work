@@ -1,5 +1,7 @@
 import * as Effect from "effect/Effect";
+import type * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import type * as Path from "effect/Path";
 import type * as Migrator from "effect/sql/Migrator";
 import type * as SqlError from "effect/sql/SqlError";
 
@@ -8,22 +10,32 @@ import {
   ExpertSnapshotService,
   layer as expertSnapshotLayer,
 } from "./expert/ExpertSnapshotService.ts";
-import { layer as linxSqliteLayer } from "./persistence/LinxSqlite.ts";
+import { LinxResourceStore, layer as resourcesLayer } from "./persistence/LinxResourceStore.ts";
+import { LinxSqlClient, layer as linxSqliteLayer } from "./persistence/LinxSqlite.ts";
 import { runLinxMigrations } from "./persistence/Migrations.ts";
+import { SkillPackageService, layer as skillPackageLayer } from "./skill/SkillPackageService.ts";
 import {
   layer as threadBindingLayer,
   ThreadBindingRepository,
 } from "./thread/ThreadBindingRepository.ts";
 
-/** Linx-owned storage and read services used by the T3 MCP toolkit. */
+/** Linx-owned storage and read services shared by the RPC and MCP layers. */
 export const layer: Layer.Layer<
-  ExpertSnapshotService | ThreadBindingRepository,
+  | ExpertSnapshotService
+  | ThreadBindingRepository
+  | SkillPackageService
+  | LinxResourceStore
+  | LinxSqlClient,
   Migrator.MigrationError | SqlError.SqlError,
-  ServerConfig.ServerConfig
+  ServerConfig.ServerConfig | FileSystem.FileSystem | Path.Path
 > = Layer.unwrap(
   Effect.map(ServerConfig.ServerConfig, (config) => {
     const sqlite = linxSqliteLayer(config.linxDbPath);
     const migrated = Layer.effectDiscard(runLinxMigrations).pipe(Layer.provideMerge(sqlite));
-    return Layer.mergeAll(expertSnapshotLayer, threadBindingLayer).pipe(Layer.provide(migrated));
+    const resources = resourcesLayer(config.linxResourceDir);
+    const skills = skillPackageLayer.pipe(Layer.provide(resources));
+    return Layer.mergeAll(expertSnapshotLayer, threadBindingLayer, skills, resources).pipe(
+      Layer.provideMerge(migrated),
+    );
   }),
 );

@@ -3,10 +3,12 @@ import * as Migrator from "effect/sql/Migrator";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import Migration001 from "./Migrations/001_Initial.ts";
+import Migration002 from "./Migrations/002_ExpertDefinitionsSkills.ts";
 import { LinxSqlClient } from "./LinxSqlite.ts";
 
 const migrations = Migrator.fromRecord({
   "001_Initial": Migration001,
+  "002_ExpertDefinitionsSkills": Migration002,
 });
 
 const run = Migrator.make({});

@@ -101,6 +101,7 @@ interface SnapshotRow {
   readonly content_json: string;
   readonly content_hash: string;
   readonly created_at: string;
+  readonly title?: string;
 }
 
 const toSnapshot = (row: SnapshotRow): LinxExpertSnapshot => ({
@@ -214,13 +215,17 @@ export const layer = Layer.effect(
 
     const listLatest = Effect.fn("ExpertSnapshotService.listLatest")(function* () {
       const rows = yield* sql<SnapshotRow>`
-        SELECT snapshot_id, expert_id, revision, content_json, content_hash, created_at
+        SELECT snapshot.snapshot_id, snapshot.expert_id, snapshot.revision,
+               snapshot.content_json, snapshot.content_hash, snapshot.created_at,
+               COALESCE(definition.title, snapshot.expert_id) AS title
         FROM expert_snapshots AS snapshot
         INNER JOIN (
           SELECT expert_id AS expert, MAX(revision) AS latest
           FROM expert_snapshots
           GROUP BY expert_id
         ) ON snapshot.expert_id = expert AND snapshot.revision = latest
+        LEFT JOIN expert_definitions AS definition ON definition.expert_id = snapshot.expert_id
+        WHERE definition.archived_at IS NULL
         ORDER BY snapshot.expert_id
       `;
       const summaries: LinxExpertSummary[] = [];
@@ -229,6 +234,7 @@ export const layer = Layer.effect(
           yield* verifiedSnapshot(row);
         summaries.push({
           expertId,
+          title: row.title ?? expertId,
           snapshotId,
           revision,
           contentHash,

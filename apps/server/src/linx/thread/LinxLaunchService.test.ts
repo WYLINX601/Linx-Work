@@ -1,3 +1,8 @@
+// @effect-diagnostics nodeBuiltinImport:off - the test allocates a temporary Linx resource root.
+import * as NodeFS from "node:fs";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
+
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -5,8 +10,11 @@ import * as Layer from "effect/Layer";
 
 import type { LinxFailure, LinxLaunchThreadInput } from "@t3tools/contracts";
 
+import { layer as definitionLayer } from "../expert/ExpertDefinitionService.ts";
 import { ExpertSnapshotService, layer as expertLayer } from "../expert/ExpertSnapshotService.ts";
+import { layer as resourcesLayer } from "../persistence/LinxResourceStore.ts";
 import { layer as linxSqliteLayer } from "../persistence/LinxSqlite.ts";
+import { layer as skillPackageLayer } from "../skill/SkillPackageService.ts";
 import { runLinxMigrations } from "../persistence/Migrations.ts";
 import { LinxLaunchService, layer as launchLayer } from "./LinxLaunchService.ts";
 import { layer as bindingLayer, ThreadBindingRepository } from "./ThreadBindingRepository.ts";
@@ -38,7 +46,15 @@ const stack = (
     bindings: ThreadBindingRepository["Service"],
   ) => Effect.Effect<LinxThreadLaunchOutcome, LinxFailure>,
 ) => {
-  const core = Layer.mergeAll(expertLayer, bindingLayer);
+  const resourceDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "linx-launch-"));
+  const resources = resourcesLayer(resourceDir);
+  const skills = skillPackageLayer.pipe(Layer.provide(resources));
+  const definitions = definitionLayer.pipe(
+    Layer.provide(skills),
+    Layer.provide(expertLayer),
+    Layer.provide(resources),
+  );
+  const core = Layer.mergeAll(expertLayer, bindingLayer, skills, definitions, resources);
   const launcher = Layer.effect(
     ThreadLauncher,
     Effect.gen(function* () {

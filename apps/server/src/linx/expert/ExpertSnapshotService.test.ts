@@ -118,6 +118,7 @@ it.effect("lists the highest revision per expert, ordered by expert id", () =>
       );
       assert.deepEqual(list[0], {
         expertId: "a",
+        title: "a",
         revision: 3,
         snapshotId: latest.snapshotId,
         contentHash: latest.contentHash,

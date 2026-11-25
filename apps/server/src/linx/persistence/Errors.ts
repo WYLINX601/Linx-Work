@@ -44,6 +44,69 @@ export class LinxSnapshotIntegrityError extends Schema.TaggedError<LinxSnapshotI
   }
 }
 
+export class LinxRevisionConflictError extends Schema.TaggedError<LinxRevisionConflictError>()(
+  "LinxRevisionConflictError",
+  {
+    entity: Schema.String,
+    expectedRevision: Schema.Number,
+    actualRevision: Schema.Number,
+  },
+) {
+  override get message(): string {
+    return `Linx ${this.entity} is at revision ${this.actualRevision}, not ${this.expectedRevision}.`;
+  }
+}
+
+export class LinxDefinitionMissingError extends Schema.TaggedError<LinxDefinitionMissingError>()(
+  "LinxDefinitionMissingError",
+  {
+    entity: Schema.String,
+    id: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Linx ${this.entity} ${this.id} does not exist.`;
+  }
+}
+
+export class LinxDefinitionArchivedError extends Schema.TaggedError<LinxDefinitionArchivedError>()(
+  "LinxDefinitionArchivedError",
+  {
+    entity: Schema.String,
+    id: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Linx ${this.entity} ${this.id} is archived.`;
+  }
+}
+
+export class LinxDependencyMissingError extends Schema.TaggedError<LinxDependencyMissingError>()(
+  "LinxDependencyMissingError",
+  {
+    entity: Schema.String,
+    id: Schema.String,
+    category: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Linx ${this.entity} ${this.id} cannot be resolved (${this.category}).`;
+  }
+}
+
+export class LinxLimitExceededError extends Schema.TaggedError<LinxLimitExceededError>()(
+  "LinxLimitExceededError",
+  {
+    limit: Schema.String,
+    actual: Schema.Number,
+    maximum: Schema.Number,
+  },
+) {
+  override get message(): string {
+    return `Linx rejected the skill package: ${this.limit} is ${this.actual}, above ${this.maximum}.`;
+  }
+}
+
 export class LinxResourcePathError extends Schema.TaggedError<LinxResourcePathError>()(
   "LinxResourcePathError",
   {

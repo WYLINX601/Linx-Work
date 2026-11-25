@@ -15,7 +15,9 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 
+import { ExpertDefinitionService } from "../expert/ExpertDefinitionService.ts";
 import { ExpertSnapshotService } from "../expert/ExpertSnapshotService.ts";
+import { SkillPackageService } from "../skill/SkillPackageService.ts";
 import { ThreadBindingRepository } from "./ThreadBindingRepository.ts";
 import { ThreadLauncher } from "./ThreadLauncher.ts";
 
@@ -79,6 +81,8 @@ export const layer = Layer.effect(
   LinxLaunchService,
   Effect.gen(function* () {
     const snapshots = yield* ExpertSnapshotService;
+    const definitions = yield* ExpertDefinitionService;
+    const skills = yield* SkillPackageService;
     const bindings = yield* ThreadBindingRepository;
     const launcher = yield* ThreadLauncher;
 
@@ -97,6 +101,25 @@ export const layer = Layer.effect(
           failure("snapshot_missing", "The expert snapshot does not exist."),
         );
       }
+      yield* definitions
+        .assertSelectable(snapshot.expertId)
+        .pipe(
+          Effect.mapError(() =>
+            failure("snapshot_missing", "The selected expert is archived or no longer exists."),
+          ),
+        );
+      const assembly = yield* skills
+        .resolveAssembly(snapshot.skillSelection)
+        .pipe(
+          Effect.mapError((error) =>
+            error._tag === "LinxDependencyMissingError"
+              ? failure(
+                  "dependency_missing",
+                  "A skill selected by the expert snapshot is missing or its hash changed.",
+                )
+              : failure("launch_failed", "The expert skill assembly could not be resolved."),
+          ),
+        );
 
       const commandId = commandIdFor(input.clientRequestId);
       const threadId = commandId;
@@ -163,7 +186,13 @@ export const layer = Layer.effect(
         return yield* Effect.fail(terminalFailure(launchFailure.code, threadId));
       }
 
-      yield* bindings.markSent(input.clientRequestId, outcome.success.runId).pipe(recordError);
+      yield* bindings
+        .markSent(input.clientRequestId, outcome.success.runId, {
+          snapshotId: snapshot.snapshotId,
+          assemblyJson: assembly.assemblyJson,
+          assemblyHash: assembly.assemblyHash,
+        })
+        .pipe(recordError);
       return {
         threadId: ThreadId.make(threadId),
         snapshotId: snapshot.snapshotId,

@@ -46,6 +46,13 @@ export interface LinxBindAndEnqueueInput {
   readonly memberKey?: string | null;
 }
 
+export interface LinxRunSkillAssemblyInput {
+  readonly snapshotId: string;
+  readonly assemblyJson: string;
+  readonly assemblyHash: string;
+  readonly continuationOfRunId?: string | null;
+}
+
 export interface LinxBindAndEnqueueResult {
   readonly binding: LinxThreadBinding;
   readonly outbox: LinxOutboxRecord;
@@ -120,6 +127,7 @@ export class ThreadBindingRepository extends Context.Service<
     readonly markSent: (
       idempotencyKey: string,
       runId?: string | null,
+      assembly?: LinxRunSkillAssemblyInput,
     ) => Effect.Effect<void, LinxStorageError | SqlError.SqlError>;
     readonly markFailed: (
       idempotencyKey: string,
@@ -237,6 +245,7 @@ export const layer = Layer.effect(
     const markSent = Effect.fn("ThreadBindingRepository.markSent")(function* (
       idempotencyKey: string,
       runId?: string | null,
+      assembly?: LinxRunSkillAssemblyInput,
     ) {
       const updatedAt = DateTime.formatIso(yield* DateTime.now);
       yield* sql.withTransaction(
@@ -249,6 +258,19 @@ export const layer = Layer.effect(
                 SELECT t3_thread_id FROM linx_outbox WHERE idempotency_key = ${idempotencyKey}
               )
             `;
+            if (assembly !== undefined) {
+              yield* sql`
+                INSERT INTO run_skill_assemblies
+                  (t3_run_id, t3_thread_id, snapshot_id, assembly_json, assembly_hash,
+                   continuation_of_run_id, created_at)
+                SELECT ${runId}, outbox.t3_thread_id, ${assembly.snapshotId},
+                       ${assembly.assemblyJson}, ${assembly.assemblyHash},
+                       ${assembly.continuationOfRunId ?? null}, ${updatedAt}
+                FROM linx_outbox AS outbox
+                WHERE outbox.idempotency_key = ${idempotencyKey}
+                ON CONFLICT(t3_run_id) DO NOTHING
+              `;
+            }
           }
           yield* sql`
             UPDATE linx_outbox

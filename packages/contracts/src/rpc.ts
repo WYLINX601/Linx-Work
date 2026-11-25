@@ -47,12 +47,20 @@ import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
 import { IsoDateTime, NonNegativeInt, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import {
+  LinxArchiveExpertInput,
+  LinxArchiveSkillInput,
   LinxCreateSnapshotInput,
+  LinxExpertDefinition,
+  LinxExpertDefinitionSummary,
   LinxExpertSnapshot,
   LinxExpertSummary,
   LinxFailure,
+  LinxImportSkillInput,
   LinxLaunchThreadInput,
   LinxLaunchThreadResult,
+  LinxSaveExpertInput,
+  LinxSkillPackageDetail,
+  LinxSkillPackageSummary,
   LinxThreadBinding,
 } from "./linx.ts";
 import { SecretSourceCheckResult } from "./settingsSecretValue.ts";
@@ -748,6 +756,14 @@ export const WS_METHODS = {
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
   linxExpertsCreateSnapshot: "linx.experts.createSnapshot",
   linxExpertsList: "linx.experts.list",
+  linxExpertsListDefinitions: "linx.experts.listDefinitions",
+  linxExpertsGetDefinition: "linx.experts.getDefinition",
+  linxExpertsSave: "linx.experts.save",
+  linxExpertsArchive: "linx.experts.archive",
+  linxSkillsImport: "linx.skills.import",
+  linxSkillsList: "linx.skills.list",
+  linxSkillsGet: "linx.skills.get",
+  linxSkillsArchive: "linx.skills.archive",
   linxThreadsLaunch: "linx.threads.launch",
   linxThreadsGetBinding: "linx.threads.getBinding",
 } as const;
@@ -2480,6 +2496,49 @@ export const LinxWsRpcGroup = RpcGroup.make(
   Rpc.make(WS_METHODS.linxExpertsList, {
     payload: {},
     success: Schema.Array(LinxExpertSummary),
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxExpertsListDefinitions, {
+    payload: {},
+    success: Schema.Array(LinxExpertDefinitionSummary),
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxExpertsGetDefinition, {
+    payload: { expertId: TrimmedNonEmptyString },
+    success: Schema.NullOr(LinxExpertDefinition),
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxExpertsSave, {
+    payload: LinxSaveExpertInput,
+    success: LinxExpertDefinition,
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxExpertsArchive, {
+    payload: LinxArchiveExpertInput,
+    success: LinxExpertDefinitionSummary,
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxSkillsImport, {
+    payload: LinxImportSkillInput,
+    success: LinxSkillPackageDetail,
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxSkillsList, {
+    payload: {},
+    success: Schema.Array(LinxSkillPackageSummary),
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxSkillsGet, {
+    payload: {
+      packageId: TrimmedNonEmptyString,
+      revision: Schema.optionalKey(NonNegativeInt),
+    },
+    success: Schema.NullOr(LinxSkillPackageDetail),
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxSkillsArchive, {
+    payload: LinxArchiveSkillInput,
+    success: LinxSkillPackageSummary,
     error: LinxFailure,
   }),
   Rpc.make(WS_METHODS.linxThreadsLaunch, {
