@@ -5,6 +5,7 @@ import { McpSchema, Tool, Toolkit } from "effect/ai";
 import * as ExpertSnapshotService from "../../../linx/expert/ExpertSnapshotService.ts";
 import * as ExternalMcpClient from "../../../linx/mcp/ExternalMcpClient.ts";
 import * as McpConnectionService from "../../../linx/mcp/McpConnectionService.ts";
+import * as SecretStore from "../../../linx/secret/SecretStore.ts";
 import * as SkillPackageService from "../../../linx/skill/SkillPackageService.ts";
 import * as ThreadBindingRepository from "../../../linx/thread/ThreadBindingRepository.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
@@ -171,6 +172,7 @@ export const LinxMcpToolkit = Toolkit.make(
       ThreadBindingRepository.ThreadBindingRepository,
       McpConnectionService.McpConnectionService,
       ExternalMcpClient.ExternalMcpClient,
+      SecretStore.SecretStore,
     ],
   })
     .annotate(Tool.Readonly, false)

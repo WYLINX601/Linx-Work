@@ -5,12 +5,14 @@ import * as SqlClient from "effect/sql/SqlClient";
 import Migration001 from "./Migrations/001_Initial.ts";
 import Migration002 from "./Migrations/002_ExpertDefinitionsSkills.ts";
 import Migration003 from "./Migrations/003_McpConnections.ts";
+import Migration004 from "./Migrations/004_McpConnectionAuth.ts";
 import { LinxSqlClient } from "./LinxSqlite.ts";
 
 const migrations = Migrator.fromRecord({
   "001_Initial": Migration001,
   "002_ExpertDefinitionsSkills": Migration002,
   "003_McpConnections": Migration003,
+  "004_McpConnectionAuth": Migration004,
 });
 
 const run = Migrator.make({});

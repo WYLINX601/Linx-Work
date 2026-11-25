@@ -9059,14 +9059,20 @@
   "68b803f0c3c52dc3": "Save revision",
   "0d58524bc3e84ca2": "Archive expert",
   "0a31791aa02e90f9": "MCP connections",
-  "f99b356dd999f038": "Only loopback or public HTTPS Streamable HTTP endpoints are accepted. Credentials are not stored in this version.",
+  "0a8b46f22bfb6363": "Only loopback or public HTTPS Streamable HTTP endpoints are accepted. Bearer tokens are stored in the macOS Keychain and never shown again.",
   "9543624d531e2041": "Connection name",
   "1bfb6c2c5522eaf8": "http://127.0.0.1:3000/mcp",
+  "92b0816bc3f5a25e": "Authentication",
+  "7cb911ec8bf9b680": "Bearer token",
+  "6f0ce538bbb9ae0e": "Keep current token",
+  "46e5fe9dd2118da1": "No authentication",
   "6de617b86a17f106": "Add connection",
   "ee9dba16d0958162": "Save connection",
   "f99f3790cbf90b80": "Cancel edit",
   "82d74e7bb75f68ab": "No MCP connections configured.",
   "0b236f40b2a852aa": "Disabled",
+  "118994550515682d": "Bearer",
+  "0c9de1f90b02d471": "No auth",
   "8b4eabdfc58b5fa0": "Edit",
   "3b5be4227b0dddc3": "Skill packages",
   "e02bccc53ccdcef6": "Import a directory containing linx-skill.json. Files are hashed and stored read-only.",
@@ -9105,7 +9111,7 @@
       "v": "v"
     }
   ],
-  "ac012dcdc0eb1a72": [
+  "cbee9903ad109437": [
     "v",
     {
       "i": 1,
@@ -9119,10 +9125,18 @@
       "v": "v"
     },
     " ",
-    "tools · ",
+    "tools ·",
+    " ",
     {
       "i": 3,
       "k": "_gt_value_3",
+      "v": "v"
+    },
+    " ·",
+    " ",
+    {
+      "i": 4,
+      "k": "_gt_value_4",
       "v": "v"
     }
   ],

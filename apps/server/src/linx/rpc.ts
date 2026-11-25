@@ -25,6 +25,8 @@ const mapError = (error: { readonly _tag: string }): LinxFailure => {
       return failure("limit_exceeded", "The skill package exceeds an import limit.");
     case "LinxMcpTransportError":
       return failure("provider_unavailable", "The external MCP endpoint could not be used.");
+    case "LinxSecretStoreError":
+      return failure("unsupported", "A credential could not be stored securely on this machine.");
     case "LinxSnapshotConflictError":
       return failure("idempotency_conflict", "This expert revision already has different content.");
     case "LinxSnapshotIntegrityError":
@@ -106,8 +108,8 @@ export const layer = LinxWsRpcGroup.toLayer(
         mapped(skills.archive(packageId, expectedRevision)),
       [WS_METHODS.linxConnectionsList]: () => mapped(connections.list()),
       [WS_METHODS.linxConnectionsGet]: ({ connectionId }) => mapped(connections.get(connectionId)),
-      [WS_METHODS.linxConnectionsTest]: ({ endpoint }) =>
-        mapped(connections.test(endpoint)).pipe(Effect.map((result) => ({ tools: result.tools }))),
+      [WS_METHODS.linxConnectionsTest]: (input) =>
+        mapped(connections.test(input)).pipe(Effect.map((result) => ({ tools: result.tools }))),
       [WS_METHODS.linxConnectionsSave]: (input) => mapped(connections.save(input)),
       [WS_METHODS.linxConnectionsDisable]: ({ connectionId, expectedRevision }) =>
         mapped(connections.disable(connectionId, expectedRevision)),

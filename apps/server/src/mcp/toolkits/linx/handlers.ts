@@ -1,3 +1,4 @@
+// @effect-diagnostics globalJsonInEffect:off - structuredContent came from JSON.parse and cannot cycle.
 import { OrchestratorMcpFailure } from "@t3tools/contracts";
 import { Ajv } from "ajv";
 import * as Effect from "effect/Effect";
@@ -5,6 +6,7 @@ import * as Effect from "effect/Effect";
 import * as ExpertSnapshotService from "../../../linx/expert/ExpertSnapshotService.ts";
 import * as ExternalMcpClient from "../../../linx/mcp/ExternalMcpClient.ts";
 import * as McpConnectionService from "../../../linx/mcp/McpConnectionService.ts";
+import * as SecretStore from "../../../linx/secret/SecretStore.ts";
 import type { LinxExpertSnapshot } from "../../../linx/expert/ExpertSnapshotService.ts";
 import * as SkillPackageService from "../../../linx/skill/SkillPackageService.ts";
 import * as ThreadBindingRepository from "../../../linx/thread/ThreadBindingRepository.ts";
@@ -261,12 +263,27 @@ const callMcpTool = Effect.fn("linx.mcpCall")(function* (input: {
   if (!validate(input.arguments)) {
     return yield* invalid("The MCP tool arguments do not match the approved schema.");
   }
+  const secrets = yield* SecretStore.SecretStore;
+  let bearerToken: string | undefined;
+  if (resolved.authKind === "bearer") {
+    if (resolved.secretRef === null) {
+      return yield* invalid("The MCP credential reference is missing.");
+    }
+    const value = yield* secrets
+      .resolve(resolved.secretRef)
+      .pipe(Effect.mapError(() => invalid("The MCP credential could not be read.")));
+    if (value === null) {
+      return yield* invalid("The MCP credential is no longer available.");
+    }
+    bearerToken = value;
+  }
   const client = yield* ExternalMcpClient.ExternalMcpClient;
   const result = yield* client
     .callTool({
       endpoint: resolved.endpoint,
       tool: tool.name,
       arguments: input.arguments,
+      ...(bearerToken === undefined ? {} : { bearerToken }),
     })
     .pipe(
       Effect.mapError((error) =>
@@ -275,6 +292,19 @@ const callMcpTool = Effect.fn("linx.mcpCall")(function* (input: {
           : invalid("The MCP endpoint could not be reached."),
       ),
     );
+  const stillAllowed = yield* connections
+    .resolveRevision(grant.connectionId, grant.revision)
+    .pipe(Effect.mapError(() => invalid("The granted MCP connection could not be re-read.")));
+  if (stillAllowed === null || stillAllowed.disabled) {
+    return yield* invalid("The MCP connection was revoked while the call was running.");
+  }
+  if (
+    bearerToken !== undefined &&
+    (result.text.includes(bearerToken) ||
+      JSON.stringify(result.structuredContent ?? null).includes(bearerToken))
+  ) {
+    return yield* invalid("The MCP result contained a credential and was discarded.");
+  }
   return {
     connectionId: resolved.connectionId,
     tool: tool.name,

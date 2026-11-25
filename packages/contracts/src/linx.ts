@@ -140,10 +140,17 @@ export const LinxMcpTool = Schema.Struct({
 });
 export type LinxMcpTool = typeof LinxMcpTool.Type;
 
+export const LinxMcpAuthKind = Schema.Literals(["none", "bearer"]);
+export type LinxMcpAuthKind = typeof LinxMcpAuthKind.Type;
+
+export const LinxMcpAuthMode = Schema.Literals(["none", "bearer", "keep"]);
+export type LinxMcpAuthMode = typeof LinxMcpAuthMode.Type;
+
 export const LinxMcpConnectionSummary = Schema.Struct({
   connectionId: TrimmedNonEmptyString,
   name: TrimmedNonEmptyString,
   endpoint: TrimmedNonEmptyString,
+  authKind: LinxMcpAuthKind,
   currentRevision: NonNegativeInt,
   disabled: Schema.Boolean,
   updatedAt: TrimmedNonEmptyString,
@@ -159,6 +166,8 @@ export type LinxMcpConnectionDetail = typeof LinxMcpConnectionDetail.Type;
 
 export const LinxTestMcpConnectionInput = Schema.Struct({
   endpoint: TrimmedNonEmptyString,
+  authMode: Schema.optionalKey(Schema.Literals(["none", "bearer"])),
+  bearerToken: Schema.optionalKey(TrimmedNonEmptyString),
 });
 export type LinxTestMcpConnectionInput = typeof LinxTestMcpConnectionInput.Type;
 
@@ -172,6 +181,8 @@ export const LinxSaveMcpConnectionInput = Schema.Struct({
   expectedRevision: Schema.optionalKey(NonNegativeInt),
   name: TrimmedNonEmptyString,
   endpoint: TrimmedNonEmptyString,
+  authMode: LinxMcpAuthMode,
+  bearerToken: Schema.optionalKey(TrimmedNonEmptyString),
 });
 export type LinxSaveMcpConnectionInput = typeof LinxSaveMcpConnectionInput.Type;
 

@@ -31,6 +31,7 @@ import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import { Spinner } from "../ui/spinner";
 import { Textarea } from "../ui/textarea";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 interface SkillChoice {
@@ -77,7 +78,9 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
     readonly expectedRevision?: number;
     readonly name: string;
     readonly endpoint: string;
-  }>({ name: "", endpoint: "" });
+    readonly authMode: "none" | "bearer" | "keep";
+    readonly bearerToken: string;
+  }>({ name: "", endpoint: "", authMode: "none", bearerToken: "" });
   const [connectionTools, setConnectionTools] = useState<ReadonlyArray<string>>([]);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
@@ -282,10 +285,23 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
       setConnectionError(mf(m("Enter an MCP endpoint.")));
       return;
     }
+    if (connectionForm.authMode === "bearer" && connectionForm.bearerToken.trim().length === 0) {
+      setConnectionError(mf(m("Enter the bearer token.")));
+      return;
+    }
     setPending("connection-test");
     setConnectionError(null);
     try {
-      const result = await runTestConnection({ environmentId, input: { endpoint } });
+      const result = await runTestConnection({
+        environmentId,
+        input: {
+          endpoint,
+          authMode: connectionForm.authMode === "bearer" ? "bearer" : "none",
+          ...(connectionForm.authMode === "bearer"
+            ? { bearerToken: connectionForm.bearerToken.trim() }
+            : {}),
+        },
+      });
       const failure = errorText(result);
       if (failure !== null) {
         setConnectionError(failure);
@@ -307,6 +323,10 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
       setConnectionError(mf(m("Enter a connection name and endpoint.")));
       return;
     }
+    if (connectionForm.authMode === "bearer" && connectionForm.bearerToken.trim().length === 0) {
+      setConnectionError(mf(m("Enter the bearer token.")));
+      return;
+    }
     setPending("connection-save");
     setConnectionError(null);
     try {
@@ -321,6 +341,10 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
               }),
           name,
           endpoint,
+          authMode: connectionForm.authMode,
+          ...(connectionForm.authMode === "bearer"
+            ? { bearerToken: connectionForm.bearerToken.trim() }
+            : {}),
         },
       });
       const failure = errorText(result);
@@ -328,7 +352,7 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
         setConnectionError(failure);
         return;
       }
-      setConnectionForm({ name: "", endpoint: "" });
+      setConnectionForm({ name: "", endpoint: "", authMode: "none", bearerToken: "" });
       setConnectionTools([]);
       connections.refresh();
       definitions.refresh();
@@ -345,6 +369,8 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
       expectedRevision: connection.currentRevision,
       name: connection.name,
       endpoint: connection.endpoint,
+      authMode: connection.authKind === "bearer" ? "keep" : "none",
+      bearerToken: "",
     });
   };
 
@@ -581,7 +607,7 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
       <SettingsSection title={gt("MCP connections")}>
         <p className="px-4 pt-3 text-sm text-muted-foreground">
           {gt(
-            "Only loopback or public HTTPS Streamable HTTP endpoints are accepted. Credentials are not stored in this version.",
+            "Only loopback or public HTTPS Streamable HTTP endpoints are accepted. Bearer tokens are stored in the macOS Keychain and never shown again.",
           )}
         </p>
         <div className="space-y-3 px-4 py-4">
@@ -604,6 +630,51 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
                 setConnectionForm((current) => ({ ...current, endpoint: event.target.value }))
               }
             />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={connectionForm.authMode}
+              onValueChange={(value) => {
+                if (value === "none" || value === "bearer" || value === "keep") {
+                  setConnectionForm((current) => ({ ...current, authMode: value }));
+                }
+              }}
+            >
+              <SelectTrigger size="sm" aria-label={gt("Authentication")}>
+                <SelectValue>
+                  {(value: "none" | "bearer" | "keep" | null) =>
+                    value === "bearer"
+                      ? gt("Bearer token")
+                      : value === "keep"
+                        ? gt("Keep current token")
+                        : gt("No authentication")
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="start">
+                <SelectItem value="none">{gt("No authentication")}</SelectItem>
+                <SelectItem value="bearer">{gt("Bearer token")}</SelectItem>
+                {connectionForm.connectionId === undefined ? null : (
+                  <SelectItem value="keep">{gt("Keep current token")}</SelectItem>
+                )}
+              </SelectPopup>
+            </Select>
+            {connectionForm.authMode === "bearer" ? (
+              <Input
+                className="min-w-0 flex-1"
+                type="password"
+                autoComplete="off"
+                placeholder={gt("Bearer token")}
+                value={connectionForm.bearerToken}
+                disabled={!canManage || pending !== null}
+                onChange={(event) =>
+                  setConnectionForm((current) => ({
+                    ...current,
+                    bearerToken: event.target.value,
+                  }))
+                }
+              />
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -629,7 +700,12 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
                 variant="ghost"
                 disabled={!canManage || pending !== null}
                 onClick={() => {
-                  setConnectionForm({ name: "", endpoint: "" });
+                  setConnectionForm({
+                    name: "",
+                    endpoint: "",
+                    authMode: "none",
+                    bearerToken: "",
+                  });
                   setConnectionTools([]);
                   setConnectionError(null);
                 }}
@@ -669,7 +745,9 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
                   <span className="block truncate text-xs text-muted-foreground">
                     <T>
                       v<Var>{connection.currentRevision}</Var> · <Var>{connection.toolCount}</Var>{" "}
-                      tools · <Var>{connection.endpoint}</Var>
+                      tools ·{" "}
+                      <Var>{connection.authKind === "bearer" ? gt("Bearer") : gt("No auth")}</Var> ·{" "}
+                      <Var>{connection.endpoint}</Var>
                     </T>
                   </span>
                 </span>

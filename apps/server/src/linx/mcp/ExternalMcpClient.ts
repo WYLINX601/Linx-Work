@@ -1,3 +1,4 @@
+// @effect-diagnostics abortControllerInEffect:off - revocation aborts calls from outside the calling fiber.
 // @effect-diagnostics nodeBuiltinImport:off globalJsonInEffect:off globalFetchInEffect:off - MCP needs manual redirects, bounded body reads, and typed parsing.
 // @effect-diagnostics nodeBuiltinImport:off - schema hashes use node:crypto.
 import * as NodeCrypto from "node:crypto";
@@ -103,11 +104,13 @@ export class ExternalMcpClient extends Context.Service<
   {
     readonly listTools: (
       endpoint: string,
+      bearerToken?: string,
     ) => Effect.Effect<ReadonlyArray<ExternalMcpTool>, TransportError>;
     readonly callTool: (input: {
       readonly endpoint: string;
       readonly tool: string;
       readonly arguments: Record<string, unknown>;
+      readonly bearerToken?: string;
     }) => Effect.Effect<ExternalMcpCallResult, TransportError>;
     readonly forget: (endpoint: string) => Effect.Effect<void>;
   }
@@ -117,6 +120,34 @@ export const layer = Layer.effect(
   ExternalMcpClient,
   Effect.gen(function* () {
     const sessions = yield* Ref.make<ReadonlyMap<string, string | null>>(new Map());
+    const activeCalls = yield* Ref.make<ReadonlyMap<string, ReadonlySet<AbortController>>>(
+      new Map(),
+    );
+
+    const sessionKey = (endpoint: string, bearerToken: string | undefined): string =>
+      `${bearerToken === undefined ? "none" : sha256(bearerToken)}\0${endpoint}`;
+
+    const authHeaders = (bearerToken: string | undefined): Record<string, string> =>
+      bearerToken === undefined ? {} : { authorization: `Bearer ${bearerToken}` };
+
+    const registerCall = (endpoint: string, controller: AbortController) =>
+      Ref.update(activeCalls, (current) => {
+        const next = new Map(current);
+        const controllers = new Set(next.get(endpoint) ?? []);
+        controllers.add(controller);
+        next.set(endpoint, controllers);
+        return next;
+      });
+
+    const unregisterCall = (endpoint: string, controller: AbortController) =>
+      Ref.update(activeCalls, (current) => {
+        const next = new Map(current);
+        const controllers = new Set(next.get(endpoint) ?? []);
+        controllers.delete(controller);
+        if (controllers.size === 0) next.delete(endpoint);
+        else next.set(endpoint, controllers);
+        return next;
+      });
 
     const post = Effect.fn("ExternalMcpClient.post")(function* (
       endpoint: string,
@@ -125,29 +156,33 @@ export const layer = Layer.effect(
       timeoutMs: number,
     ) {
       return yield* Effect.gen(function* () {
-        const response = yield* Effect.tryPromise({
-          try: (signal) =>
-            fetch(endpoint, {
-              method: "POST",
-              headers: {
-                accept: "application/json, text/event-stream",
-                "content-type": "application/json",
-                ...headers,
-              },
-              body: JSON.stringify(body),
-              redirect: "manual",
-              signal,
-            }),
-          catch: () => transport(endpoint, "network"),
-        });
-        if (response.status >= 300 && response.status < 400) {
-          return yield* transport(endpoint, "redirect");
-        }
-        const text = yield* Effect.tryPromise({
-          try: () => readLimited(response),
-          catch: () => transport(endpoint, "response-too-large"),
-        });
-        return { status: response.status, headers: response.headers, text };
+        const controller = new AbortController();
+        yield* registerCall(endpoint, controller);
+        return yield* Effect.gen(function* () {
+          const response = yield* Effect.tryPromise({
+            try: (signal) =>
+              fetch(endpoint, {
+                method: "POST",
+                headers: {
+                  accept: "application/json, text/event-stream",
+                  "content-type": "application/json",
+                  ...headers,
+                },
+                body: JSON.stringify(body),
+                redirect: "manual",
+                signal: AbortSignal.any([signal, controller.signal]),
+              }),
+            catch: () => transport(endpoint, "network"),
+          });
+          if (response.status >= 300 && response.status < 400) {
+            return yield* transport(endpoint, "redirect");
+          }
+          const text = yield* Effect.tryPromise({
+            try: () => readLimited(response),
+            catch: () => transport(endpoint, "response-too-large"),
+          });
+          return { status: response.status, headers: response.headers, text };
+        }).pipe(Effect.ensuring(unregisterCall(endpoint, controller)));
       }).pipe(
         Effect.timeout(timeoutMs),
         Effect.mapError((error) =>
@@ -162,7 +197,11 @@ export const layer = Layer.effect(
         catch: () => transport(endpoint, "invalid-json"),
       });
 
-    const openSession = Effect.fn("ExternalMcpClient.openSession")(function* (endpoint: string) {
+    const openSession = Effect.fn("ExternalMcpClient.openSession")(function* (
+      endpoint: string,
+      bearerToken: string | undefined,
+    ) {
+      const authenticated = authHeaders(bearerToken);
       const initialized = yield* post(
         endpoint,
         {
@@ -175,7 +214,7 @@ export const layer = Layer.effect(
             clientInfo: { name: "linx-workos", version: "1" },
           },
         },
-        {},
+        authenticated,
         INITIALIZE_TIMEOUT_MS,
       );
       if (initialized.status === 401 || initialized.status === 403) {
@@ -196,6 +235,7 @@ export const layer = Layer.effect(
         endpoint,
         { jsonrpc: "2.0", method: "notifications/initialized" },
         {
+          ...authenticated,
           ...(sessionId === null ? {} : { "mcp-session-id": sessionId }),
           "mcp-protocol-version": PROTOCOL_VERSION,
         },
@@ -204,41 +244,50 @@ export const layer = Layer.effect(
       return sessionId satisfies string | null;
     });
 
-    const sessionFor = Effect.fn("ExternalMcpClient.sessionFor")(function* (endpoint: string) {
-      const existing = (yield* Ref.get(sessions)).get(endpoint);
+    const sessionFor = Effect.fn("ExternalMcpClient.sessionFor")(function* (
+      endpoint: string,
+      bearerToken: string | undefined,
+    ) {
+      const key = sessionKey(endpoint, bearerToken);
+      const existing = (yield* Ref.get(sessions)).get(key);
       if (existing !== undefined) return existing;
-      const sessionId = yield* openSession(endpoint);
-      yield* Ref.update(sessions, (current) => new Map(current).set(endpoint, sessionId));
+      const sessionId = yield* openSession(endpoint, bearerToken);
+      yield* Ref.update(sessions, (current) => new Map(current).set(key, sessionId));
       return sessionId;
     });
 
     const request = Effect.fn("ExternalMcpClient.request")(function* (
       endpoint: string,
+      bearerToken: string | undefined,
       sessionId: string | null,
       id: number,
       method: string,
       params: unknown,
       timeoutMs: number,
     ) {
-      const response = yield* post(
+      return yield* post(
         endpoint,
         { jsonrpc: "2.0", id, method, params },
         {
+          ...authHeaders(bearerToken),
           ...(sessionId === null ? {} : { "mcp-session-id": sessionId }),
           "mcp-protocol-version": PROTOCOL_VERSION,
         },
         timeoutMs,
       );
-      return response;
     });
 
-    const listTools = Effect.fn("ExternalMcpClient.listTools")(function* (endpoint: string) {
+    const listTools = Effect.fn("ExternalMcpClient.listTools")(function* (
+      endpoint: string,
+      bearerToken?: string,
+    ) {
       const tools: ExternalMcpTool[] = [];
       let cursor: string | undefined;
       for (let page = 0; page < MAX_TOOL_PAGES; page += 1) {
-        let sessionId = yield* sessionFor(endpoint);
+        let sessionId = yield* sessionFor(endpoint, bearerToken);
         let response = yield* request(
           endpoint,
+          bearerToken,
           sessionId,
           1,
           "tools/list",
@@ -246,10 +295,13 @@ export const layer = Layer.effect(
           REQUEST_TIMEOUT_MS,
         );
         if (response.status === 404) {
-          sessionId = yield* openSession(endpoint);
-          yield* Ref.update(sessions, (current) => new Map(current).set(endpoint, sessionId));
+          sessionId = yield* openSession(endpoint, bearerToken);
+          yield* Ref.update(sessions, (current) =>
+            new Map(current).set(sessionKey(endpoint, bearerToken), sessionId),
+          );
           response = yield* request(
             endpoint,
+            bearerToken,
             sessionId,
             1,
             "tools/list",
@@ -300,11 +352,13 @@ export const layer = Layer.effect(
       readonly endpoint: string;
       readonly tool: string;
       readonly arguments: Record<string, unknown>;
+      readonly bearerToken?: string;
     }) {
-      let sessionId = yield* sessionFor(input.endpoint);
+      let sessionId = yield* sessionFor(input.endpoint, input.bearerToken);
       const send = (session: string | null) =>
         request(
           input.endpoint,
+          input.bearerToken,
           session,
           1,
           "tools/call",
@@ -313,8 +367,10 @@ export const layer = Layer.effect(
         );
       let response = yield* send(sessionId);
       if (response.status === 404) {
-        sessionId = yield* openSession(input.endpoint);
-        yield* Ref.update(sessions, (current) => new Map(current).set(input.endpoint, sessionId));
+        sessionId = yield* openSession(input.endpoint, input.bearerToken);
+        yield* Ref.update(sessions, (current) =>
+          new Map(current).set(sessionKey(input.endpoint, input.bearerToken), sessionId),
+        );
         response = yield* send(sessionId);
       }
       if (response.status === 401 || response.status === 403) {
@@ -349,9 +405,20 @@ export const layer = Layer.effect(
     });
 
     const forget = Effect.fn("ExternalMcpClient.forget")(function* (endpoint: string) {
-      yield* Ref.update(sessions, (current) => {
+      const controllers = (yield* Ref.get(activeCalls)).get(endpoint);
+      if (controllers !== undefined) {
+        for (const controller of controllers) controller.abort();
+      }
+      yield* Ref.update(activeCalls, (current) => {
         const next = new Map(current);
         next.delete(endpoint);
+        return next;
+      });
+      yield* Ref.update(sessions, (current) => {
+        const next = new Map(current);
+        for (const key of next.keys()) {
+          if (key === endpoint || key.endsWith(`\0${endpoint}`)) next.delete(key);
+        }
         return next;
       });
     });

@@ -107,6 +107,18 @@ export class LinxLimitExceededError extends Schema.TaggedError<LinxLimitExceeded
   }
 }
 
+export class LinxSecretStoreError extends Schema.TaggedError<LinxSecretStoreError>()(
+  "LinxSecretStoreError",
+  {
+    operation: Schema.Literals(["put", "resolve", "remove"]),
+    category: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `The Linx secret store could not ${this.operation} a secret (${this.category}).`;
+  }
+}
+
 export class LinxMcpTransportError extends Schema.TaggedError<LinxMcpTransportError>()(
   "LinxMcpTransportError",
   {

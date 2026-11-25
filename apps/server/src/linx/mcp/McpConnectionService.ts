@@ -13,15 +13,19 @@ import type {
   LinxMcpConnectionSummary,
   LinxMcpTool,
   LinxSaveMcpConnectionInput,
+  LinxTestMcpConnectionInput,
 } from "@t3tools/contracts";
 
 import {
+  LinxDependencyMissingError,
   LinxDefinitionMissingError,
   LinxMcpTransportError,
   LinxRevisionConflictError,
+  LinxSecretStoreError,
   LinxStorageError,
 } from "../persistence/Errors.ts";
 import { LinxSqlClient } from "../persistence/LinxSqlite.ts";
+import { SecretStore } from "../secret/SecretStore.ts";
 import { ExternalMcpClient, type ExternalMcpTool } from "./ExternalMcpClient.ts";
 
 interface ConnectionRow {
@@ -39,6 +43,8 @@ interface RevisionRow {
   readonly endpoint: string;
   readonly config_hash: string;
   readonly tools_json: string;
+  readonly auth_kind: "none" | "bearer";
+  readonly secret_ref: string | null;
   readonly created_at: string;
 }
 
@@ -47,6 +53,8 @@ export interface ResolvedMcpConnection {
   readonly name: string;
   readonly revision: number;
   readonly endpoint: string;
+  readonly authKind: "none" | "bearer";
+  readonly secretRef: string | null;
   readonly disabled: boolean;
   readonly tools: ReadonlyArray<ExternalMcpTool>;
 }
@@ -156,6 +164,7 @@ const summarize = (row: ConnectionRow, revision: RevisionRow): LinxMcpConnection
   connectionId: row.connection_id,
   name: row.name,
   endpoint: revision.endpoint,
+  authKind: revision.auth_kind,
   currentRevision: row.current_revision,
   disabled: row.disabled_at !== null,
   updatedAt: row.updated_at,
@@ -167,10 +176,17 @@ const detailFrom = (row: ConnectionRow, revision: RevisionRow): LinxMcpConnectio
   tools: toContractTools(toTools(revision)),
 });
 
-const configHashFor = (endpoint: string, tools: ReadonlyArray<ExternalMcpTool>): string =>
+const configHashFor = (
+  endpoint: string,
+  tools: ReadonlyArray<ExternalMcpTool>,
+  authKind: "none" | "bearer",
+  token: string | undefined,
+): string =>
   sha256(
     canonicalJson({
       endpoint,
+      authKind,
+      secretHash: token === undefined ? null : sha256(token),
       tools: tools.map((tool) => ({ name: tool.name, schemaHash: tool.schemaHash })),
     }),
   );
@@ -179,18 +195,20 @@ export class McpConnectionService extends Context.Service<
   McpConnectionService,
   {
     readonly test: (
-      endpoint: string,
+      input: LinxTestMcpConnectionInput,
     ) => Effect.Effect<
       { readonly endpoint: string; readonly tools: ReadonlyArray<LinxMcpTool> },
-      LinxMcpTransportError
+      LinxMcpTransportError | LinxDependencyMissingError | LinxSecretStoreError
     >;
     readonly save: (
       input: LinxSaveMcpConnectionInput,
     ) => Effect.Effect<
       LinxMcpConnectionDetail,
       | LinxDefinitionMissingError
+      | LinxDependencyMissingError
       | LinxRevisionConflictError
       | LinxMcpTransportError
+      | LinxSecretStoreError
       | LinxStorageError
       | SqlError.SqlError
     >;
@@ -220,6 +238,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* LinxSqlClient;
     const client = yield* ExternalMcpClient;
+    const secrets = yield* SecretStore;
 
     const selectConnection = (connectionId: string) =>
       sql<ConnectionRow>`
@@ -229,30 +248,168 @@ export const layer = Layer.effect(
 
     const selectRevision = (connectionId: string, revision: number) =>
       sql<RevisionRow>`
-        SELECT connection_id, revision, endpoint, config_hash, tools_json, created_at
+        SELECT connection_id, revision, endpoint, config_hash, tools_json, auth_kind,
+               secret_ref, created_at
         FROM mcp_connection_revisions
         WHERE connection_id = ${connectionId} AND revision = ${revision}
       `;
 
-    const test = Effect.fn("McpConnectionService.test")(function* (endpoint: string) {
-      const normalized = yield* validateMcpEndpoint(endpoint);
-      const tools = yield* client.listTools(normalized);
-      return { endpoint: normalized, tools: toContractTools(tools) };
+    const authFor = Effect.fn("McpConnectionService.authFor")(function* (
+      input: LinxSaveMcpConnectionInput,
+      current: RevisionRow | undefined,
+    ) {
+      const mode = input.authMode;
+      if (mode === "none") {
+        return {
+          authKind: "none" as const,
+          secretRef: null,
+          token: undefined,
+          createdRef: null,
+        };
+      }
+      if (mode === "keep") {
+        if (current !== undefined && current.auth_kind === "none") {
+          return {
+            authKind: "none" as const,
+            secretRef: null,
+            token: undefined,
+            createdRef: null,
+          };
+        }
+        if (
+          current === undefined ||
+          current.auth_kind !== "bearer" ||
+          current.secret_ref === null
+        ) {
+          return yield* new LinxDependencyMissingError({
+            entity: "mcp connection",
+            id: input.connectionId ?? "new",
+            category: "no-token-to-keep",
+          });
+        }
+        const token = yield* secrets.resolve(current.secret_ref).pipe(
+          Effect.mapError(
+            () =>
+              new LinxDependencyMissingError({
+                entity: "mcp secret",
+                id: current.secret_ref ?? "unknown",
+                category: "secret-store",
+              }),
+          ),
+        );
+        if (token === null) {
+          return yield* new LinxDependencyMissingError({
+            entity: "mcp secret",
+            id: current.secret_ref,
+            category: "missing",
+          });
+        }
+        return {
+          authKind: "bearer" as const,
+          secretRef: current.secret_ref,
+          token,
+          createdRef: null,
+        };
+      }
+      if (input.bearerToken === undefined) {
+        return yield* new LinxDependencyMissingError({
+          entity: "mcp connection",
+          id: input.connectionId ?? "new",
+          category: "bearer-token-required",
+        });
+      }
+      if (current?.auth_kind === "bearer" && current.secret_ref !== null) {
+        const existing = yield* secrets
+          .resolve(current.secret_ref)
+          .pipe(Effect.orElseSucceed(() => null));
+        if (existing === input.bearerToken) {
+          return {
+            authKind: "bearer" as const,
+            secretRef: current.secret_ref,
+            token: existing,
+            createdRef: null,
+          };
+        }
+      }
+      const reference = yield* secrets.put(input.bearerToken);
+      return {
+        authKind: "bearer" as const,
+        secretRef: reference,
+        token: input.bearerToken,
+        createdRef: reference,
+      };
+    });
+
+    const test = Effect.fn("McpConnectionService.test")(function* (
+      input: LinxTestMcpConnectionInput,
+    ) {
+      const endpoint = yield* validateMcpEndpoint(input.endpoint);
+      const authMode = input.authMode ?? "none";
+      if (authMode === "bearer" && input.bearerToken === undefined) {
+        return yield* new LinxDependencyMissingError({
+          entity: "mcp connection",
+          id: "test",
+          category: "bearer-token-required",
+        });
+      }
+      const tools = yield* client.listTools(endpoint, input.bearerToken);
+      return { endpoint, tools: toContractTools(tools) };
     });
 
     const save = Effect.fn("McpConnectionService.save")(function* (
       input: LinxSaveMcpConnectionInput,
     ) {
       const endpoint = yield* validateMcpEndpoint(input.endpoint);
-      const catalog = yield* client.listTools(endpoint);
-      const configHash = configHashFor(endpoint, catalog);
-      const toolsJson = JSON.stringify(catalog);
       const name = input.name.trim();
+      const existing =
+        input.connectionId === undefined
+          ? undefined
+          : (yield* selectConnection(input.connectionId))[0];
+      if (input.connectionId !== undefined && existing === undefined) {
+        return yield* new LinxDefinitionMissingError({
+          entity: "mcp connection",
+          id: input.connectionId,
+        });
+      }
+      const currentRevision =
+        existing === undefined
+          ? undefined
+          : (yield* selectRevision(existing.connection_id, existing.current_revision))[0];
+      if (input.connectionId !== undefined && currentRevision === undefined) {
+        return yield* new LinxStorageError({
+          operation: "query",
+          entity: "mcp_connection_revisions",
+          category: "current-revision-missing",
+        });
+      }
+      if (
+        existing !== undefined &&
+        input.expectedRevision !== undefined &&
+        input.expectedRevision !== existing.current_revision
+      ) {
+        return yield* new LinxRevisionConflictError({
+          entity: "mcp connection",
+          expectedRevision: input.expectedRevision,
+          actualRevision: existing.current_revision,
+        });
+      }
 
-      if (input.connectionId === undefined) {
+      const auth = yield* authFor(input, currentRevision);
+      const catalog = yield* client.listTools(endpoint, auth.token).pipe(
+        Effect.mapError((error) => error),
+        Effect.tapError(() =>
+          auth.createdRef === null
+            ? Effect.void
+            : secrets.remove(auth.createdRef).pipe(Effect.ignore),
+        ),
+      );
+      const configHash = configHashFor(endpoint, catalog, auth.authKind, auth.token);
+      const toolsJson = JSON.stringify(catalog);
+
+      if (existing === undefined) {
         const connectionId = `mcp_${NodeCrypto.randomUUID().replaceAll("-", "")}`;
-        return yield* sql
-          .withTransaction(
+        const outcome = yield* Effect.result(
+          sql.withTransaction(
             Effect.gen(function* () {
               const now = DateTime.formatIso(yield* DateTime.now);
               yield* sql`
@@ -263,8 +420,10 @@ export const layer = Layer.effect(
               `;
               yield* sql`
                 INSERT INTO mcp_connection_revisions
-                  (connection_id, revision, endpoint, config_hash, tools_json, created_at)
-                VALUES (${connectionId}, 1, ${endpoint}, ${configHash}, ${toolsJson}, ${now})
+                  (connection_id, revision, endpoint, config_hash, tools_json, auth_kind,
+                   secret_ref, created_at)
+                VALUES (${connectionId}, 1, ${endpoint}, ${configHash}, ${toolsJson},
+                        ${auth.authKind}, ${auth.secretRef}, ${now})
               `;
               const row = (yield* selectConnection(connectionId))[0];
               const revision = (yield* selectRevision(connectionId, 1))[0];
@@ -277,23 +436,21 @@ export const layer = Layer.effect(
               }
               return detailFrom(row, revision);
             }),
-          )
-          .pipe(
-            Effect.mapError((cause) =>
-              cause._tag === "SqlError"
-                ? new LinxStorageError({
-                    operation: "write",
-                    entity: "mcp_connections",
-                    category: "insert-failed",
-                  })
-                : cause,
-            ),
-          );
+          ),
+        );
+        if (outcome._tag === "Failure") {
+          if (auth.createdRef !== null) {
+            yield* secrets.remove(auth.createdRef).pipe(Effect.ignore);
+          }
+          return yield* outcome.failure;
+        }
+        return outcome.success;
       }
 
-      const connectionId = input.connectionId;
-      return yield* sql
-        .withTransaction(
+      const connectionId = existing.connection_id;
+      const previousRevision = currentRevision!;
+      const outcome = yield* Effect.result(
+        sql.withTransaction(
           Effect.gen(function* () {
             const row = (yield* selectConnection(connectionId))[0];
             if (row === undefined) {
@@ -302,29 +459,20 @@ export const layer = Layer.effect(
                 id: connectionId,
               });
             }
-            if (input.expectedRevision !== row.current_revision) {
+            if (row.current_revision !== previousRevision.revision) {
               return yield* new LinxRevisionConflictError({
                 entity: "mcp connection",
-                expectedRevision: input.expectedRevision ?? row.current_revision,
+                expectedRevision: previousRevision.revision,
                 actualRevision: row.current_revision,
               });
             }
-            const current = (yield* selectRevision(connectionId, row.current_revision))[0];
-            if (current === undefined) {
-              return yield* new LinxStorageError({
-                operation: "query",
-                entity: "mcp_connection_revisions",
-                category: "current-revision-missing",
-              });
-            }
             const now = DateTime.formatIso(yield* DateTime.now);
-            if (current.config_hash === configHash) {
+            if (previousRevision.config_hash === configHash) {
               yield* sql`
                 UPDATE mcp_connections
                 SET name = ${name}, disabled_at = NULL, updated_at = ${now}
                 WHERE connection_id = ${connectionId}
               `;
-              yield* client.forget(endpoint);
               const fresh = (yield* selectConnection(connectionId))[0];
               if (fresh === undefined) {
                 return yield* new LinxStorageError({
@@ -333,13 +481,15 @@ export const layer = Layer.effect(
                   category: "missing-after-update",
                 });
               }
-              return detailFrom(fresh, current);
+              return detailFrom(fresh, previousRevision);
             }
             const nextRevision = row.current_revision + 1;
             yield* sql`
               INSERT INTO mcp_connection_revisions
-                (connection_id, revision, endpoint, config_hash, tools_json, created_at)
-              VALUES (${connectionId}, ${nextRevision}, ${endpoint}, ${configHash}, ${toolsJson}, ${now})
+                (connection_id, revision, endpoint, config_hash, tools_json, auth_kind,
+                 secret_ref, created_at)
+              VALUES (${connectionId}, ${nextRevision}, ${endpoint}, ${configHash},
+                      ${toolsJson}, ${auth.authKind}, ${auth.secretRef}, ${now})
             `;
             const updated = yield* sql<{ readonly revision: number }>`
               UPDATE mcp_connections
@@ -355,8 +505,6 @@ export const layer = Layer.effect(
                 actualRevision: row.current_revision,
               });
             }
-            if (current.endpoint !== endpoint) yield* client.forget(current.endpoint);
-            yield* client.forget(endpoint);
             const fresh = (yield* selectConnection(connectionId))[0];
             const revision = (yield* selectRevision(connectionId, nextRevision))[0];
             if (fresh === undefined || revision === undefined) {
@@ -368,26 +516,34 @@ export const layer = Layer.effect(
             }
             return detailFrom(fresh, revision);
           }),
-        )
-        .pipe(
-          Effect.mapError((cause) =>
-            cause._tag === "SqlError"
-              ? new LinxStorageError({
-                  operation: "write",
-                  entity: "mcp_connections",
-                  category: "update-failed",
-                })
-              : cause,
-          ),
-        );
+        ),
+      );
+      if (outcome._tag === "Failure") {
+        if (auth.createdRef !== null) {
+          yield* secrets.remove(auth.createdRef).pipe(Effect.ignore);
+        }
+        return yield* outcome.failure;
+      }
+      const oldSecret =
+        previousRevision.auth_kind === "bearer" ? previousRevision.secret_ref : null;
+      if (oldSecret !== null && oldSecret !== auth.secretRef) {
+        yield* secrets.remove(oldSecret).pipe(Effect.ignore);
+      }
+      yield* client.forget(previousRevision.endpoint);
+      yield* client.forget(endpoint);
+      return outcome.success;
     });
 
     const list = Effect.fn("McpConnectionService.list")(function* () {
       const rows = yield* sql<
-        ConnectionRow & { readonly endpoint: string; readonly tools_json: string }
+        ConnectionRow & {
+          readonly endpoint: string;
+          readonly auth_kind: "none" | "bearer";
+          readonly tools_json: string;
+        }
       >`
         SELECT c.connection_id, c.name, c.current_revision, c.disabled_at, c.created_at,
-               c.updated_at, r.endpoint, r.tools_json
+               c.updated_at, r.endpoint, r.auth_kind, r.tools_json
         FROM mcp_connections AS c
         INNER JOIN mcp_connection_revisions AS r
           ON r.connection_id = c.connection_id AND r.revision = c.current_revision
@@ -397,6 +553,7 @@ export const layer = Layer.effect(
         connectionId: row.connection_id,
         name: row.name,
         endpoint: row.endpoint,
+        authKind: row.auth_kind,
         currentRevision: row.current_revision,
         disabled: row.disabled_at !== null,
         updatedAt: row.updated_at,
@@ -454,6 +611,9 @@ export const layer = Layer.effect(
         });
       }
       yield* client.forget(revision.endpoint);
+      if (revision.secret_ref !== null) {
+        yield* secrets.remove(revision.secret_ref).pipe(Effect.ignore);
+      }
       return summarize(row, revision);
     });
 
@@ -470,6 +630,8 @@ export const layer = Layer.effect(
         name: row.name,
         revision: selected.revision,
         endpoint: selected.endpoint,
+        authKind: selected.auth_kind,
+        secretRef: selected.secret_ref,
         disabled: row.disabled_at !== null,
         tools: toTools(selected),
       } satisfies ResolvedMcpConnection;
