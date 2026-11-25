@@ -39,6 +39,8 @@ export type StartupPresentation = typeof StartupPresentation.Type;
 export interface ServerDerivedPaths {
   readonly stateDir: string;
   readonly dbPath: string;
+  readonly linxDbPath: string;
+  readonly linxResourceDir: string;
   readonly keybindingsConfigPath: string;
   readonly settingsPath: string;
   readonly environmentThemesDir: string;
@@ -159,6 +161,8 @@ export const deriveServerPaths = Effect.fn(function* (
   return {
     stateDir,
     dbPath,
+    linxDbPath: join(stateDir, "linx.sqlite"),
+    linxResourceDir: join(stateDir, "linx-resources"),
     keybindingsConfigPath: join(stateDir, "keybindings.json"),
     settingsPath: join(stateDir, "settings.json"),
     environmentThemesDir: join(stateDir, "themes"),
@@ -196,6 +200,7 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
       fs.makeDirectory(derivedPaths.providerLogsDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.terminalLogsDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.attachmentsDir, { recursive: true }),
+      fs.makeDirectory(derivedPaths.linxResourceDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.worktreesDir, { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.keybindingsConfigPath), { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.settingsPath), { recursive: true }),
@@ -211,6 +216,13 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
     .pipe(
       Effect.catch((cause) =>
         Effect.logWarning("Could not restrict state directory permissions.", { cause }),
+      ),
+    );
+  yield* fs
+    .chmod(derivedPaths.linxResourceDir, 0o700)
+    .pipe(
+      Effect.catch((cause) =>
+        Effect.logWarning("Could not restrict Linx resource directory permissions.", { cause }),
       ),
     );
 

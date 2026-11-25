@@ -95,6 +95,7 @@ import * as ProviderHostPathWatcher from "./provider/ProviderHostPathWatcher.ts"
 import * as ProjectSettingsOverrideSweep from "./provider/ProjectSettingsOverrideSweep.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
 import * as McpHttpServer from "./mcp/McpHttpServer.ts";
+import * as LinxServices from "./linx/LinxServices.ts";
 import * as PeerForwarding from "./peer/PeerForwarding.ts";
 import * as RemoteDelegation from "./peer/RemoteDelegation.ts";
 import * as PeerClientPairing from "./peer/PeerClientPairing.ts";
@@ -965,6 +966,7 @@ const layerMakeRoutes = Layer.mergeAll(
   Layer.provide(layerCommandReadiness),
   Layer.provide(ServerHttp.layerBrowserApiCors),
   Layer.provide(ServerHttp.layerHttpCompression),
+  Layer.provide(LinxServices.layer),
 );
 
 const layerMakeServer = Layer.unwrap(

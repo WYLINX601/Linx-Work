@@ -104,6 +104,7 @@ export function makeReplayServerConfig(
     const environmentThemesDir = path.join(stateDir, "themes");
     const worktreesDir = path.join(baseDir, "worktrees");
     const providerStatusCacheDir = path.join(baseDir, "caches");
+    const linxResourceDir = path.join(stateDir, "linx-resources");
 
     for (const directory of [
       stateDir,
@@ -114,6 +115,7 @@ export function makeReplayServerConfig(
       environmentThemesDir,
       worktreesDir,
       providerStatusCacheDir,
+      linxResourceDir,
     ]) {
       yield* fs.makeDirectory(directory, { recursive: true });
     }
@@ -149,6 +151,8 @@ export function makeReplayServerConfig(
       logWebSocketEvents: false,
       stateDir,
       dbPath: path.join(stateDir, "state.sqlite"),
+      linxDbPath: path.join(stateDir, "linx.sqlite"),
+      linxResourceDir,
       keybindingsConfigPath: path.join(stateDir, "keybindings.json"),
       settingsPath: path.join(stateDir, "settings.json"),
       providerStatusCacheDir,

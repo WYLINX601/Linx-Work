@@ -70,6 +70,9 @@ import { EnvironmentToolkit } from "./toolkits/environment/tools.ts";
 import * as EnvironmentHandlers from "./toolkits/environment/handlers.ts";
 import { ThemeToolkit } from "./toolkits/theme/tools.ts";
 import * as ThemeHandlers from "./toolkits/theme/handlers.ts";
+import { LinxExpertContextToolkit } from "./toolkits/linx/tools.ts";
+import * as LinxExpertContextHandlers from "./toolkits/linx/handlers.ts";
+import * as LinxMcpServices from "../linx/LinxMcpServices.ts";
 import { ProjectToolkit } from "./toolkits/project/tools.ts";
 import * as ProjectHandlers from "./toolkits/project/handlers.ts";
 import { AttachmentToolkit } from "./toolkits/attachment/tools.ts";
@@ -1437,6 +1440,11 @@ const layerThemeToolkit = toolkitRegistration(ThemeToolkit, ThemeHandlers.layer)
   Layer.provide(ThreadCommandExecutor.layer),
 );
 
+const layerLinxExpertContextToolkit = toolkitRegistration(
+  LinxExpertContextToolkit,
+  LinxExpertContextHandlers.layer,
+).pipe(Layer.provide(LinxMcpServices.layer));
+
 export const layerProjectRegistration = toolkitRegistration(ProjectToolkit, ProjectHandlers.layer);
 
 // Reports may name any tool this server advertises, read when a report arrives.
@@ -1524,6 +1532,7 @@ export const layerTools = Layer.mergeAll(
   layerDeviceToolkit,
   layerHtmlToolkit,
   layerMessageToolkit,
+  layerLinxExpertContextToolkit,
 );
 
 const layerToolExposure = Layer.effect(
