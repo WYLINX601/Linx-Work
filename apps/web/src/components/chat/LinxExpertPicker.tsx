@@ -42,7 +42,7 @@ export function LinxExpertPicker({
   const options = experts.data ?? [];
   const noExpert = gt("No Expert");
   const description = selected
-    ? gt("Attachments are unavailable when starting an Expert thread.")
+    ? undefined
     : experts.isPending
       ? gt("Loading Experts…")
       : experts.error
@@ -91,7 +91,7 @@ export function LinxExpertPicker({
         {...composerMenuProps}
       >
         <MenuGroup aria-label={gt("Expert")}>
-          <MenuGroupLabel>{description}</MenuGroupLabel>
+          {description ? <MenuGroupLabel>{description}</MenuGroupLabel> : null}
           <MenuRadioGroup
             value={selected?.snapshotId ?? ""}
             onValueChange={(snapshotId: string) => {

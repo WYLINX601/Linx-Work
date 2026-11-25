@@ -91,12 +91,6 @@ it("keeps the Expert launch request on retry and returns to native launch when d
   await picker.click();
   await page.getByRole("menuitemradio", { name: "reviewer · v3 · aaaaaaaa" }).click();
   await expect.element(picker).toHaveTextContent("reviewer");
-  await expect
-    .element(picker)
-    .toHaveAttribute(
-      "aria-description",
-      "Attachments are unavailable when starting an Expert thread.",
-    );
   await expect.element(attach).not.toBeInTheDocument();
   await userEvent.click(editor);
   await cdp().send("Input.insertText", { text: "Review the frozen input" });
@@ -115,6 +109,12 @@ it("keeps the Expert launch request on retry and returns to native launch when d
   expect(expertCalls[1]).toEqual(expertCalls[0]);
   expect(nativeLaunch).not.toHaveBeenCalled();
   await picker.click();
+  await expect
+    .element(page.getByRole("menuitemradio", { name: "reviewer · v3 · aaaaaaaa" }))
+    .toBeVisible();
+  await expect
+    .element(page.getByText("Attachments are unavailable when starting an Expert thread."))
+    .not.toBeInTheDocument();
   await page.getByRole("menuitemradio", { name: "No Expert" }).click();
   await expect.element(attach).toBeVisible();
   await userEvent.click(editor);
