@@ -179,3 +179,32 @@ it.effect("archives with a revision check and keeps the content readable", () =>
     }),
   );
 });
+
+it.effect("reads the entry or a named file and rejects paths outside the frozen package", () => {
+  const directory = makeTempDir("linx-skill-");
+  const packageDir = NodePath.join(directory, "package");
+  writePackage(packageDir, {
+    files: { "SKILL.md": "# Reviewer\n", "notes/tone.md": "Be direct.\n" },
+  });
+  return withService(directory, () =>
+    Effect.gen(function* () {
+      const skills = yield* SkillPackageService;
+      const imported = yield* skills.importDirectory(packageDir);
+      const revision = imported.revisions[0];
+      assert.isDefined(revision);
+      const entry = yield* skills.readFile(revision);
+      assert.equal(entry.path, "SKILL.md");
+      assert.equal(entry.content, "# Reviewer\n");
+      const named = yield* skills.readFile({ ...revision, relativePath: "notes/tone.md" });
+      assert.equal(named.content, "Be direct.\n");
+      const missing = yield* Effect.flip(
+        skills.readFile({ ...revision, relativePath: "../outside.md" }),
+      );
+      assert.equal(missing._tag, "LinxDependencyMissingError");
+      const wrongHash = yield* Effect.flip(
+        skills.readFile({ ...revision, contentHash: "e".repeat(64) }),
+      );
+      assert.equal(wrongHash._tag, "LinxDependencyMissingError");
+    }),
+  );
+});

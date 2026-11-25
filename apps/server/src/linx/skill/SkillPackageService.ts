@@ -49,6 +49,12 @@ export interface LinxSkillManifest {
   readonly files: ReadonlyArray<LinxSkillFile>;
 }
 
+export interface LinxSkillFileSummary {
+  readonly path: string;
+  readonly sha256: string;
+  readonly bytes: number;
+}
+
 export interface LinxResolvedAssembly {
   readonly assemblyJson: string;
   readonly assemblyHash: string;
@@ -220,6 +226,32 @@ export class SkillPackageService extends Context.Service<
       LinxResolvedAssembly,
       LinxDependencyMissingError | LinxStorageError | SqlError.SqlError
     >;
+    readonly filesFor: (
+      packageId: string,
+      revision: number,
+      contentHash: string,
+    ) => Effect.Effect<
+      ReadonlyArray<LinxSkillFileSummary>,
+      LinxDependencyMissingError | LinxStorageError | SqlError.SqlError
+    >;
+    readonly readFile: (input: {
+      readonly packageId: string;
+      readonly revision: number;
+      readonly contentHash: string;
+      readonly relativePath?: string;
+    }) => Effect.Effect<
+      {
+        readonly path: string;
+        readonly content: string;
+        readonly sha256: string;
+        readonly bytes: number;
+      },
+      | LinxDependencyMissingError
+      | LinxResourcePathError
+      | LinxStorageError
+      | PlatformError.PlatformError
+      | SqlError.SqlError
+    >;
   }
 >()("t3/linx/skill/SkillPackageService") {}
 
@@ -324,7 +356,17 @@ export const layer = Layer.effect(
       const seen = new Set<string>();
       let totalBytes = 0;
 
-      const walk = Effect.fn("SkillPackageService.walk")(function* (
+      const walk: (
+        current: string,
+        prefix: string,
+        depth: number,
+      ) => Effect.Effect<
+        void,
+        | LinxDependencyMissingError
+        | LinxLimitExceededError
+        | LinxResourcePathError
+        | PlatformError.PlatformError
+      > = Effect.fn("SkillPackageService.walk")(function* (
         current: string,
         prefix: string,
         depth: number,
@@ -497,11 +539,13 @@ export const layer = Layer.effect(
       return created;
     });
 
-    const assertNoCycle = Effect.fn("SkillPackageService.assertNoCycle")(function* (
+    const assertNoCycle: (
       packageId: string,
       target: string,
       depth: number,
-    ) {
+    ) => Effect.Effect<void, LinxDependencyMissingError | SqlError.SqlError> = Effect.fn(
+      "SkillPackageService.assertNoCycle",
+    )(function* (packageId: string, target: string, depth: number) {
       if (depth > MAX_DEPENDENCY_DEPTH) {
         return yield* dependency(packageId, "dependency-depth");
       }
@@ -633,12 +677,70 @@ export const layer = Layer.effect(
       } satisfies LinxResolvedAssembly;
     });
 
+    const selectVerifiedManifest = Effect.fn("SkillPackageService.selectVerifiedManifest")(
+      function* (packageId: string, revision: number, contentHash: string) {
+        const row = (yield* selectRevision(packageId, revision))[0];
+        if (row === undefined) {
+          return yield* dependency(packageId, "skill-revision-missing");
+        }
+        if (row.content_hash !== contentHash) {
+          return yield* dependency(packageId, "skill-hash-mismatch");
+        }
+        return parseManifestJson(row);
+      },
+    );
+
+    const filesFor = Effect.fn("SkillPackageService.filesFor")(function* (
+      packageId: string,
+      revision: number,
+      contentHash: string,
+    ) {
+      const manifest = yield* selectVerifiedManifest(packageId, revision, contentHash);
+      return manifest.files.map((file) => ({
+        path: file.path,
+        sha256: file.sha256,
+        bytes: file.bytes,
+      }));
+    });
+
+    const readFile = Effect.fn("SkillPackageService.readFile")(function* (input: {
+      readonly packageId: string;
+      readonly revision: number;
+      readonly contentHash: string;
+      readonly relativePath?: string;
+    }) {
+      const manifest = yield* selectVerifiedManifest(
+        input.packageId,
+        input.revision,
+        input.contentHash,
+      );
+      const path = input.relativePath ?? manifest.entry;
+      const file = manifest.files.find((entry) => entry.path === path);
+      if (file === undefined) {
+        return yield* dependency(path, "file-not-in-package");
+      }
+      if (file.bytes > 256 * 1024) {
+        return yield* dependency(path, "file-too-large-to-read");
+      }
+      const bytes = yield* resources.read(file.resourcePath);
+      if (sha256(bytes) !== file.sha256) {
+        return yield* dependency(path, "file-hash-mismatch");
+      }
+      const content = yield* Effect.try({
+        try: () => new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+        catch: () => dependency(path, "not-text"),
+      });
+      return { path: file.path, content, sha256: file.sha256, bytes: file.bytes };
+    });
+
     return SkillPackageService.of({
       importDirectory,
       list,
       get,
       archive,
       resolveAssembly,
+      filesFor,
+      readFile,
     });
   }),
 );

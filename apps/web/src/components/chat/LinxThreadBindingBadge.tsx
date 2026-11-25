@@ -1,7 +1,7 @@
 import { AuthOrchestrationReadScope, type ScopedThreadRef } from "@t3tools/contracts";
 import { useGT } from "gt-react";
 
-import { linxThreadBinding } from "../../state/linx";
+import { linxExpertDefinitions, linxThreadBinding } from "../../state/linx";
 import { useEnvironmentQuery } from "../../state/query";
 import { useEnvironmentScope } from "../../state/session";
 import { Badge } from "../ui/badge";
@@ -16,11 +16,18 @@ export function LinxThreadBindingBadge({
   const query = useEnvironmentQuery(
     canRead ? linxThreadBinding({ environmentId, input: { threadId } }) : null,
   );
+  const definitions = useEnvironmentQuery(
+    canRead ? linxExpertDefinitions({ environmentId, input: {} }) : null,
+  );
   if (!canRead) return null;
   const binding = query.data;
+  const title =
+    binding === null
+      ? undefined
+      : definitions.data?.find((entry) => entry.expertId === binding.expertId)?.title;
   const label = binding
     ? gt("{expert} · v{revision} · {hash}", {
-        expert: binding.expertId,
+        expert: title ?? binding.expertId,
         revision: binding.revision,
         hash: binding.contentHash.slice(0, 8),
       })

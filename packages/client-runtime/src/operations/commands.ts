@@ -10,7 +10,11 @@ import {
   OrchestrationV2CheckpointUnavailableError,
   WS_METHODS,
   type ChatAttachment,
+  type LinxArchiveExpertInput,
+  type LinxArchiveSkillInput,
+  type LinxImportSkillInput,
   type LinxLaunchThreadInput,
+  type LinxSaveExpertInput,
   MessageId,
   type ModelSelection,
   type NodeId,
@@ -780,6 +784,31 @@ export const launchLinxThread = Effect.fn("EnvironmentCommands.launchLinxThread"
   input: LinxLaunchThreadInput,
 ) {
   return yield* resendAfterSocketLoss(request(WS_METHODS.linxThreadsLaunch, input));
+});
+
+// Linx saves carry an expected revision, so a blind resend could conflict with the first write.
+export const saveLinxExpert = Effect.fn("EnvironmentCommands.saveLinxExpert")(function* (
+  input: LinxSaveExpertInput,
+) {
+  return yield* request(WS_METHODS.linxExpertsSave, input);
+});
+
+export const archiveLinxExpert = Effect.fn("EnvironmentCommands.archiveLinxExpert")(function* (
+  input: LinxArchiveExpertInput,
+) {
+  return yield* request(WS_METHODS.linxExpertsArchive, input);
+});
+
+export const importLinxSkill = Effect.fn("EnvironmentCommands.importLinxSkill")(function* (
+  input: LinxImportSkillInput,
+) {
+  return yield* request(WS_METHODS.linxSkillsImport, input);
+});
+
+export const archiveLinxSkill = Effect.fn("EnvironmentCommands.archiveLinxSkill")(function* (
+  input: LinxArchiveSkillInput,
+) {
+  return yield* request(WS_METHODS.linxSkillsArchive, input);
 });
 
 // Servers without native resume dispatch command.text verbatim; newer ones clear

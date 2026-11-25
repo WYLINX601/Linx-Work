@@ -3058,6 +3058,8 @@
   "a1c2e064ead9e88d": "无法新建会话",
   "c9f0735ef91f895b": "项目仍然可用，请再次尝试打开草稿。",
   "b3036052b23a9f21": "无法打开链接",
+  "12386578188f34be": "Reconnect {label} to manage its Linx experts.",
+  "ab5a5c4b2c48b67f": "Connect an environment to manage Linx experts.",
   "d504f8f37caf6483": "请重新连接 {label} 以设置其提供方。",
   "c8380bf9638c2156": "连接一个环境以设置其提供方。",
   "8c1bb7953bdeb59b": "{title} 需要支持此功能的环境。请选择一个环境以继续。",
@@ -9046,6 +9048,65 @@
   "130e51beb6cf5aad": "关联环境",
   "122c3e355699e69d": "这里的智能体随后就能在该环境中启动会话、发送消息并等待结果。此连接将显示在该环境“共享与访问”的“已授权客户端”中，可在那里撤销。",
   "dc9a0b68d101e904": "已关联。再次关联将使用你选择的访问权限续期。",
+  "97c8711d6918454b": "Linx experts",
+  "5b30f9af04b32375": "Experts freeze a persona and skill set into an immutable snapshot. Chats keep the snapshot they started with.",
+  "cdf9f2d9090b0205": "New expert",
+  "dfe3b4f16154506b": "No experts yet. Create one to use it from the composer.",
+  "90585f4150afc7b3": "Archived",
+  "13c58030b4dab0bb": "Expert editor",
+  "1e0dea4956fe14ee": "This expert is archived. Existing chats keep their snapshot.",
+  "d4551ba9af2ede94": "Saving appends a new immutable revision; saved chats do not move.",
+  "f051707e99696e9f": "Managing experts needs the providers:manage scope.",
+  "c3ea24ac809a5ed5": "Title",
+  "fd7acd2e4dc4ec40": "Persona",
+  "ca748b0b131329a1": "No skill packages imported yet.",
+  "2a546119bf3879ee": "归档",
+  "1c08dbee95d7da78": "Create expert",
+  "68b803f0c3c52dc3": "Save revision",
+  "0d58524bc3e84ca2": "Archive expert",
+  "3b5be4227b0dddc3": "Skill packages",
+  "e02bccc53ccdcef6": "Import a directory containing linx-skill.json. Files are hashed and stored read-only.",
+  "d6e9a4c038b3ebbd": "/path/to/skill-package",
+  "382dcc85d648b2df": "Import",
+  "4d3876c0e118753c": [
+    "v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " ·",
+    " ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    }
+  ],
+  "1560e5b55a9768be": [
+    "frozen at v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "373a5a10653d19c6": [
+    "Preserved from this revision: ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " references,",
+    " ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    },
+    " MCP grants."
+  ],
   "2fbcbe2d8c56a245": "优先",
   "479a7eeae96511fc": "普通",
   "fd16014a2f23dea9": "较少使用",
@@ -9276,7 +9337,6 @@
   "51651ce45d481a20": "选择项目图标文件",
   "a10ff8b39e16d7f8": "置顶",
   "c65b6d4b82c9eb43": "置顶项目会优先显示在项目选择器中。",
-  "2a546119bf3879ee": "归档",
   "63e237776ff48bea": "已在项目选择器中隐藏。会话和文件会保留。",
   "241533719962794f": "在项目选择器中隐藏项目。会话和文件会保留。",
   "8512c768b3e556e5": "无法归档项目",
@@ -11927,6 +11987,7 @@
   "627cbcb35cb20460": "测试模型",
   "4820900255bdc17b": "测试 语音 模型 转写 识别",
   "582c604a40a4548a": "侧边栏 不活跃 天数 无活动 自动",
+  "d45335f9e7f4b8ae": "expert persona skill snapshot composer",
   "a5ff7e3accfdebf2": "claude 上下文 压缩 空闲 缓存 token 用量 摘要 恢复",
   "cb147525a3215d7c": "PR 合并 关闭 自动 侧边栏",
   "6fee244945243134": "PR 不活跃 自动收尾 合并 关闭 侧边栏",

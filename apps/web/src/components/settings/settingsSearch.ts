@@ -28,6 +28,7 @@ export type SettingsPath =
   | "/settings/keybindings"
   | "/settings/snap-shot"
   | "/settings/providers"
+  | "/settings/experts"
   | "/settings/threads"
   | "/settings/browser"
   | "/settings/devices"
@@ -106,6 +107,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/keybindings": msg("Keybindings"),
   "/settings/snap-shot": msg("SnapShots"),
   "/settings/providers": msg("Providers"),
+  "/settings/experts": msg("Linx experts"),
   "/settings/threads": msg("Threads"),
   "/settings/browser": msg("Browser"),
   "/settings/devices": msg("Devices"),
@@ -156,6 +158,7 @@ const ALL_SETTINGS_NAV_GROUPS: ReadonlyArray<SettingsNavGroup> = [
     heading: msg("Agents"),
     paths: [
       "/settings/providers",
+      "/settings/experts",
       "/settings/threads",
       "/settings/browser",
       "/settings/devices",
@@ -713,6 +716,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: [msg("sidebar inactivity days no activity automatically")],
     requiresThreadAutoSettlement: true,
     scope: "project-defaults",
+  },
+  {
+    id: "linx-experts",
+    title: msg("Linx experts"),
+    to: "/settings/experts",
+    searchTerms: [msg("expert persona skill snapshot composer")],
   },
   {
     id: "compact-idle-threads",
@@ -1533,6 +1542,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/snap-shot": null,
   "/settings/keybindings": null,
   "/settings/providers": null,
+  "/settings/experts": null,
   "/settings/threads": null,
   "/settings/browser": null,
   "/settings/devices": null,

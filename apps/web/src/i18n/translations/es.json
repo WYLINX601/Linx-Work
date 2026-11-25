@@ -3054,6 +3054,8 @@
   "a1c2e064ead9e88d": "No se pudo iniciar un hilo nuevo",
   "c9f0735ef91f895b": "El proyecto sigue disponible. Vuelve a intentar abrir el borrador.",
   "b3036052b23a9f21": "No se pudo abrir el enlace",
+  "12386578188f34be": "Reconnect {label} to manage its Linx experts.",
+  "ab5a5c4b2c48b67f": "Connect an environment to manage Linx experts.",
   "d504f8f37caf6483": "Vuelve a conectar {label} para configurar sus proveedores.",
   "c8380bf9638c2156": "Conecta un entorno para configurar sus proveedores.",
   "8c1bb7953bdeb59b": "{title} requiere un entorno compatible. Elige uno para continuar.",
@@ -9028,6 +9030,65 @@
   "130e51beb6cf5aad": "Vincular un entorno",
   "122c3e355699e69d": "Así los agentes de aquí podrán iniciar hilos allí, enviarles mensajes y esperarlos. Aparece en Clientes autorizados, en Compartir y acceso de ese entorno, donde se puede revocar.",
   "dc9a0b68d101e904": "Ya está vinculado. Vincularlo de nuevo lo renueva con el acceso que elijas.",
+  "97c8711d6918454b": "Linx experts",
+  "5b30f9af04b32375": "Experts freeze a persona and skill set into an immutable snapshot. Chats keep the snapshot they started with.",
+  "cdf9f2d9090b0205": "New expert",
+  "dfe3b4f16154506b": "No experts yet. Create one to use it from the composer.",
+  "90585f4150afc7b3": "Archived",
+  "13c58030b4dab0bb": "Expert editor",
+  "1e0dea4956fe14ee": "This expert is archived. Existing chats keep their snapshot.",
+  "d4551ba9af2ede94": "Saving appends a new immutable revision; saved chats do not move.",
+  "f051707e99696e9f": "Managing experts needs the providers:manage scope.",
+  "c3ea24ac809a5ed5": "Title",
+  "fd7acd2e4dc4ec40": "Persona",
+  "ca748b0b131329a1": "No skill packages imported yet.",
+  "2a546119bf3879ee": "Archivados",
+  "1c08dbee95d7da78": "Create expert",
+  "68b803f0c3c52dc3": "Save revision",
+  "0d58524bc3e84ca2": "Archive expert",
+  "3b5be4227b0dddc3": "Skill packages",
+  "e02bccc53ccdcef6": "Import a directory containing linx-skill.json. Files are hashed and stored read-only.",
+  "d6e9a4c038b3ebbd": "/path/to/skill-package",
+  "382dcc85d648b2df": "Import",
+  "4d3876c0e118753c": [
+    "v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " ·",
+    " ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    }
+  ],
+  "1560e5b55a9768be": [
+    "frozen at v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "373a5a10653d19c6": [
+    "Preserved from this revision: ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " references,",
+    " ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    },
+    " MCP grants."
+  ],
   "2fbcbe2d8c56a245": "Preferir",
   "479a7eeae96511fc": "Normal",
   "fd16014a2f23dea9": "Con menos frecuencia",
@@ -9257,7 +9318,6 @@
   "51651ce45d481a20": "Elige un archivo de icono para el proyecto",
   "a10ff8b39e16d7f8": "Fijar",
   "c65b6d4b82c9eb43": "Los proyectos fijados aparecen primero en los selectores de proyectos.",
-  "2a546119bf3879ee": "Archivados",
   "63e237776ff48bea": "Oculto en los selectores de proyectos. Se conservan los hilos y archivos.",
   "241533719962794f": "Oculta el proyecto en los selectores de proyectos. Se conservan los hilos y archivos.",
   "8512c768b3e556e5": "No se pudo archivar el proyecto",
@@ -11897,6 +11957,7 @@
   "627cbcb35cb20460": "Probar modelo",
   "4820900255bdc17b": "probar voz habla modelo transcripción reconocimiento",
   "582c604a40a4548a": "barra lateral inactividad días sin actividad automáticamente",
+  "d45335f9e7f4b8ae": "expert persona skill snapshot composer",
   "a5ff7e3accfdebf2": "claude contexto compactación inactivo caché tokens uso resumen reanudar",
   "cb147525a3215d7c": "pull request fusionar cerrada automáticamente barra lateral",
   "6fee244945243134": "pull request inactividad resolución automática fusionar cerrar barra lateral",

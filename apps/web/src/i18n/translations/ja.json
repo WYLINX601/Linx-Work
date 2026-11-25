@@ -3052,6 +3052,8 @@
   "a1c2e064ead9e88d": "新しいスレッドを開始できませんでした",
   "c9f0735ef91f895b": "プロジェクトはまだ利用できます。もう一度下書きを開いてみてください。",
   "b3036052b23a9f21": "リンクを開けませんでした",
+  "12386578188f34be": "Reconnect {label} to manage its Linx experts.",
+  "ab5a5c4b2c48b67f": "Connect an environment to manage Linx experts.",
   "d504f8f37caf6483": "プロバイダーを設定するには {label} に再接続してください。",
   "c8380bf9638c2156": "プロバイダーを設定するには環境を接続してください。",
   "8c1bb7953bdeb59b": "{title} には対応する環境が必要です。続行するには環境を選択してください。",
@@ -8986,6 +8988,65 @@
   "130e51beb6cf5aad": "環境をリンク",
   "122c3e355699e69d": "これで、ここのエージェントがそこでスレッドを起動し、メッセージを送り、完了を待てるようになります。リンクはその環境の「共有とアクセス」の「承認済みクライアント」に表示され、そこで取り消せます。",
   "dc9a0b68d101e904": "すでにリンクされています。再度リンクすると、選択したアクセス権で更新されます。",
+  "97c8711d6918454b": "Linx experts",
+  "5b30f9af04b32375": "Experts freeze a persona and skill set into an immutable snapshot. Chats keep the snapshot they started with.",
+  "cdf9f2d9090b0205": "New expert",
+  "dfe3b4f16154506b": "No experts yet. Create one to use it from the composer.",
+  "90585f4150afc7b3": "Archived",
+  "13c58030b4dab0bb": "Expert editor",
+  "1e0dea4956fe14ee": "This expert is archived. Existing chats keep their snapshot.",
+  "d4551ba9af2ede94": "Saving appends a new immutable revision; saved chats do not move.",
+  "f051707e99696e9f": "Managing experts needs the providers:manage scope.",
+  "c3ea24ac809a5ed5": "Title",
+  "fd7acd2e4dc4ec40": "Persona",
+  "ca748b0b131329a1": "No skill packages imported yet.",
+  "2a546119bf3879ee": "アーカイブ",
+  "1c08dbee95d7da78": "Create expert",
+  "68b803f0c3c52dc3": "Save revision",
+  "0d58524bc3e84ca2": "Archive expert",
+  "3b5be4227b0dddc3": "Skill packages",
+  "e02bccc53ccdcef6": "Import a directory containing linx-skill.json. Files are hashed and stored read-only.",
+  "d6e9a4c038b3ebbd": "/path/to/skill-package",
+  "382dcc85d648b2df": "Import",
+  "4d3876c0e118753c": [
+    "v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " ·",
+    " ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    }
+  ],
+  "1560e5b55a9768be": [
+    "frozen at v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "373a5a10653d19c6": [
+    "Preserved from this revision: ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " references,",
+    " ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    },
+    " MCP grants."
+  ],
   "2fbcbe2d8c56a245": "優先",
   "479a7eeae96511fc": "通常",
   "fd16014a2f23dea9": "低頻度",
@@ -9216,7 +9277,6 @@
   "51651ce45d481a20": "プロジェクトのアイコンファイルを選択",
   "a10ff8b39e16d7f8": "ピン留め",
   "c65b6d4b82c9eb43": "ピン留めしたプロジェクトは、プロジェクトの選択メニューで先頭に表示されます。",
-  "2a546119bf3879ee": "アーカイブ",
   "63e237776ff48bea": "プロジェクトの選択メニューに表示されません。スレッドとファイルは保持されます。",
   "241533719962794f": "プロジェクトの選択メニューからプロジェクトを非表示にします。スレッドとファイルは保持されます。",
   "8512c768b3e556e5": "プロジェクトをアーカイブできませんでした",
@@ -11853,6 +11913,7 @@
   "627cbcb35cb20460": "モデルをテスト",
   "4820900255bdc17b": "テスト 音声 モデル 文字起こし 認識 test voice",
   "582c604a40a4548a": "サイドバー 非アクティブ 日数 アクティビティなし 自動 inactivity",
+  "d45335f9e7f4b8ae": "expert persona skill snapshot composer",
   "a5ff7e3accfdebf2": "Claude コンテキスト 圧縮 アイドル キャッシュ トークン 使用量 要約 再開 compaction",
   "cb147525a3215d7c": "プルリクエスト マージ クローズ 自動 サイドバー pull request",
   "6fee244945243134": "プルリクエスト 非アクティブ 自動対応済み マージ クローズ サイドバー auto-settle",

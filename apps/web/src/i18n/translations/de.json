@@ -3055,6 +3055,8 @@
   "a1c2e064ead9e88d": "Neuer Thread konnte nicht gestartet werden",
   "c9f0735ef91f895b": "Das Projekt ist noch verfügbar. Versuche, den Entwurf erneut zu öffnen.",
   "b3036052b23a9f21": "Der Link konnte nicht geöffnet werden",
+  "12386578188f34be": "Reconnect {label} to manage its Linx experts.",
+  "ab5a5c4b2c48b67f": "Connect an environment to manage Linx experts.",
   "d504f8f37caf6483": "Verbinde {label} neu, um die Anbieter einzurichten.",
   "c8380bf9638c2156": "Verbinde eine Umgebung, um ihre Anbieter einzurichten.",
   "8c1bb7953bdeb59b": "{title} braucht eine passende Umgebung. Wähle eine, um fortzufahren.",
@@ -9030,6 +9032,65 @@
   "130e51beb6cf5aad": "Umgebung verknüpfen",
   "122c3e355699e69d": "Agenten hier können dort dann Threads starten, ihnen Nachrichten senden und auf sie warten. Sie erscheint unter „Autorisierte Clients“ in „Freigabe & Zugriff“ dieser Umgebung und kann dort widerrufen werden.",
   "dc9a0b68d101e904": "Bereits verknüpft. Erneutes Verknüpfen verlängert sie mit dem gewählten Zugriff.",
+  "97c8711d6918454b": "Linx experts",
+  "5b30f9af04b32375": "Experts freeze a persona and skill set into an immutable snapshot. Chats keep the snapshot they started with.",
+  "cdf9f2d9090b0205": "New expert",
+  "dfe3b4f16154506b": "No experts yet. Create one to use it from the composer.",
+  "90585f4150afc7b3": "Archived",
+  "13c58030b4dab0bb": "Expert editor",
+  "1e0dea4956fe14ee": "This expert is archived. Existing chats keep their snapshot.",
+  "d4551ba9af2ede94": "Saving appends a new immutable revision; saved chats do not move.",
+  "f051707e99696e9f": "Managing experts needs the providers:manage scope.",
+  "c3ea24ac809a5ed5": "Title",
+  "fd7acd2e4dc4ec40": "Persona",
+  "ca748b0b131329a1": "No skill packages imported yet.",
+  "2a546119bf3879ee": "Archivieren",
+  "1c08dbee95d7da78": "Create expert",
+  "68b803f0c3c52dc3": "Save revision",
+  "0d58524bc3e84ca2": "Archive expert",
+  "3b5be4227b0dddc3": "Skill packages",
+  "e02bccc53ccdcef6": "Import a directory containing linx-skill.json. Files are hashed and stored read-only.",
+  "d6e9a4c038b3ebbd": "/path/to/skill-package",
+  "382dcc85d648b2df": "Import",
+  "4d3876c0e118753c": [
+    "v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " ·",
+    " ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    }
+  ],
+  "1560e5b55a9768be": [
+    "frozen at v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "373a5a10653d19c6": [
+    "Preserved from this revision: ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " references,",
+    " ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    },
+    " MCP grants."
+  ],
   "2fbcbe2d8c56a245": "Bevorzugen",
   "479a7eeae96511fc": "Normal",
   "fd16014a2f23dea9": "Seltener",
@@ -9259,7 +9320,6 @@
   "51651ce45d481a20": "Datei für Projektsymbol auswählen",
   "a10ff8b39e16d7f8": "Anheften",
   "c65b6d4b82c9eb43": "Angeheftete Projekte stehen in der Projektauswahl oben.",
-  "2a546119bf3879ee": "Archivieren",
   "63e237776ff48bea": "In der Projektauswahl ausgeblendet. Threads und Dateien bleiben erhalten.",
   "241533719962794f": "Blendet das Projekt in der Projektauswahl aus. Threads und Dateien bleiben erhalten.",
   "8512c768b3e556e5": "Projekt konnte nicht archiviert werden",
@@ -11904,6 +11964,7 @@
   "627cbcb35cb20460": "Modell testen",
   "4820900255bdc17b": "spracheingabe testen sprache modell transkription erkennung",
   "582c604a40a4548a": "seitenleiste inaktivität tage keine aktivität automatisch",
+  "d45335f9e7f4b8ae": "expert persona skill snapshot composer",
   "a5ff7e3accfdebf2": "claude kontext komprimierung inaktiv cache tokens nutzung zusammenfassung fortsetzen",
   "cb147525a3215d7c": "pull request merge geschlossen automatisch seitenleiste",
   "6fee244945243134": "pull request inaktivität automatisch erledigen merge schließen seitenleiste",

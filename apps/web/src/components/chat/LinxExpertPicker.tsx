@@ -52,11 +52,12 @@ export function LinxExpertPicker({
           : gt("Choose an immutable Expert snapshot for the first turn.");
   const snapshotLabel = ({
     expertId,
+    title,
     revision,
     contentHash,
-  }: Pick<LinxExpertSummary, "expertId" | "revision" | "contentHash">) =>
+  }: Pick<LinxExpertSummary, "expertId" | "title" | "revision" | "contentHash">) =>
     gt("{expert} · v{revision} · {hash}", {
-      expert: expertId,
+      expert: title.length > 0 ? title : expertId,
       revision,
       hash: contentHash.slice(0, 8),
     });
@@ -75,7 +76,7 @@ export function LinxExpertPicker({
         }
       >
         <span data-composer-control-label className="truncate">
-          {selected?.expertId ?? noExpert}
+          {selected?.title ?? noExpert}
         </span>
         <ChevronDownIcon
           aria-hidden
