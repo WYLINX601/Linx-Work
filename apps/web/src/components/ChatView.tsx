@@ -355,7 +355,7 @@ import { useProactivePanels } from "../hooks/useProactivePanels";
 import { useIncrementalTimelineEntries } from "../hooks/useIncrementalTimelineEntries";
 import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./chat/ComposerBannerStack";
-import { LinxComposerBanner } from "./chat/LinxComposerBanner";
+import { LinxExpertPicker } from "./chat/LinxExpertPicker";
 import { modelFallbackBannerItem } from "./chat/ComposerUsageLimits";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { resolveThreadSyncPhase } from "../threadSync";
@@ -3820,12 +3820,6 @@ export default function ChatView(props: ChatViewProps) {
                   >
                     <ChildThreadApprovals threadRef={activeThreadRef} />
                     <div className="relative">
-                      {isLocalDraftThread ? (
-                        <LinxComposerBanner
-                          environmentId={environmentId}
-                          draftTarget={composerDraftTarget}
-                        />
-                      ) : null}
                       <ComposerSurface.Shell contextRow={showComposerContextStrip}>
                         <ComposerSurface.Host
                           inert={queuedRunEdit.isSaving}
@@ -3869,6 +3863,14 @@ export default function ChatView(props: ChatViewProps) {
                                 composerRef={composerRef}
                                 composerDraftTarget={composerDraftTarget}
                                 environmentId={environmentId}
+                                expertPicker={
+                                  isLocalDraftThread ? (
+                                    <LinxExpertPicker
+                                      environmentId={environmentId}
+                                      draftTarget={composerDraftTarget}
+                                    />
+                                  ) : null
+                                }
                                 attachmentUploadsCapabilityKnown={attachmentUploadsCapabilityKnown}
                                 supportsAttachmentUploads={supportsAttachmentUploads}
                                 supportsQuestionAttachments={supportsQuestionAttachments}

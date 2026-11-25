@@ -16,6 +16,7 @@ import { AppRoot } from "~/AppRoot";
 import "~/components/ChatView";
 import { DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { __setClientSettingsForTests } from "~/hooks/useSettings";
+import "~/index.css";
 import { getRouter } from "~/router";
 import {
   ENVIRONMENT_ID,
@@ -36,6 +37,7 @@ vi.mock("../../../../packages/client-runtime/src/connection/driver.ts", async (i
 });
 
 it("keeps the Expert launch request on retry and returns to native launch when deselected", async () => {
+  await page.viewport(1280, 800);
   using _environment = installFakeEnvironment([]);
   __setClientSettingsForTests({
     ...DEFAULT_CLIENT_SETTINGS,
@@ -68,12 +70,33 @@ it("keeps the Expert launch request on retry and returns to native launch when d
   const router = getRouter(createMemoryHistory({ initialEntries: [`/draft/${draftId}`] }));
   await router.load();
   await using _app = await render(<AppRoot router={router} />, { router: false });
-  const picker = page.getByRole("combobox", { name: "Choose Expert" });
+  const picker = page.getByRole("button", { name: "Choose Expert" });
   const editor = page.getByTestId("composer-editor");
   const attach = page.getByRole("button", { name: "Attach files" });
   await expect.element(attach).toBeVisible();
+  await expect.element(picker).toBeVisible();
+  const expertButton = picker.element();
+  const modelButton = expertButton
+    .closest("[data-chat-composer-footer]")
+    ?.querySelector("[data-chat-provider-model-picker]");
+  if (!modelButton) throw new Error("The Expert and model pickers must share the Composer footer.");
+  expect(modelButton.getBoundingClientRect().width).toBeGreaterThan(0);
+
+  expect(expertButton.getBoundingClientRect().right).toBeLessThanOrEqual(
+    modelButton.getBoundingClientRect().left,
+  );
+  expect(
+    Math.abs(expertButton.getBoundingClientRect().top - modelButton.getBoundingClientRect().top),
+  ).toBeLessThan(4);
   await picker.click();
-  await page.getByRole("option", { name: "reviewer · v3 · aaaaaaaa" }).click();
+  await page.getByRole("menuitemradio", { name: "reviewer · v3 · aaaaaaaa" }).click();
+  await expect.element(picker).toHaveTextContent("reviewer");
+  await expect
+    .element(picker)
+    .toHaveAttribute(
+      "aria-description",
+      "Attachments are unavailable when starting an Expert thread.",
+    );
   await expect.element(attach).not.toBeInTheDocument();
   await userEvent.click(editor);
   await cdp().send("Input.insertText", { text: "Review the frozen input" });
@@ -92,7 +115,7 @@ it("keeps the Expert launch request on retry and returns to native launch when d
   expect(expertCalls[1]).toEqual(expertCalls[0]);
   expect(nativeLaunch).not.toHaveBeenCalled();
   await picker.click();
-  await page.getByRole("option", { name: "No Expert" }).click();
+  await page.getByRole("menuitemradio", { name: "No Expert" }).click();
   await expect.element(attach).toBeVisible();
   await userEvent.click(editor);
   await userEvent.keyboard("{Enter}");

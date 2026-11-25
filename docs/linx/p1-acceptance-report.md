@@ -35,6 +35,8 @@
 | P1-9  | 定向测试 12 文件 / 155 通过；`check:changed` 27 文件 / 443 通过，React Compiler 9 项通过。工作区 typecheck 43/43，server/web 单独 typecheck、i18n 检查及静态 Web 构建均通过。                                                                             |
 | P1-10 | 本报告记录确定版本、环境、实际运行、命令与证据。                                                                                                                                                                                                          |
 
+后续布局调整：新建草稿的 Expert 入口在 Composer 底栏、模型按钮左侧。收起时只显示名称；展开后保留版本、哈希和附件限制说明。已绑定 Thread 仍只在 Header 显示冻结绑定。
+
 ## 验证命令
 
 ```sh

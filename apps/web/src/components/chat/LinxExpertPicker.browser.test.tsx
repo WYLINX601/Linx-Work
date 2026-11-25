@@ -9,7 +9,7 @@ import {
   partializeComposerDraftStoreState,
   useComposerDraftStore,
 } from "../../composerDraftStore";
-import { LinxComposerBanner } from "./LinxComposerBanner";
+import { LinxExpertPicker } from "./LinxExpertPicker";
 
 const fixture = vi.hoisted(() => ({ canOperate: true, hasExpert: true }));
 vi.mock(import("../../state/session"), async (original) => ({
@@ -45,14 +45,14 @@ it("pins a revision to the current draft, not another draft or persisted setting
   const store = useComposerDraftStore.getState();
   store.setPrompt(draftTarget, "Review this");
   await using screen = await render(
-    <LinxComposerBanner environmentId={environmentId} draftTarget={draftTarget} />,
+    <LinxExpertPicker environmentId={environmentId} draftTarget={draftTarget} />,
   );
   try {
-    await screen.getByRole("combobox", { name: "Choose Expert" }).click();
-    await page.getByRole("option", { name: "reviewer · v12 · aaaaaaaa" }).click();
+    await screen.getByRole("button", { name: "Choose Expert" }).click();
+    await page.getByRole("menuitemradio", { name: "reviewer · v12 · aaaaaaaa" }).click();
     await expect
-      .element(screen.getByRole("combobox", { name: "Choose Expert" }))
-      .toHaveTextContent("reviewer · v12 · aaaaaaaa");
+      .element(screen.getByRole("button", { name: "Choose Expert" }))
+      .toHaveTextContent("reviewer");
     expect(
       useComposerDraftStore.getState().getComposerDraft(draftTarget)?.linxLaunch?.expert.snapshotId,
     ).toBe("snap-fixed");
@@ -60,10 +60,10 @@ it("pins a revision to the current draft, not another draft or persisted setting
       JSON.stringify(partializeComposerDraftStoreState(useComposerDraftStore.getState())),
     ).not.toContain("snap-fixed");
     await screen.rerender(
-      <LinxComposerBanner environmentId={environmentId} draftTarget={otherDraft} />,
+      <LinxExpertPicker environmentId={environmentId} draftTarget={otherDraft} />,
     );
     await expect
-      .element(screen.getByRole("combobox", { name: "Choose Expert" }))
+      .element(screen.getByRole("button", { name: "Choose Expert" }))
       .toHaveTextContent("No Expert");
   } finally {
     store.clearDraftThread(draftTarget);
@@ -74,18 +74,19 @@ it("does not offer Expert selection to read-only sessions or require one when th
   const draftTarget = DraftId.make("linx-empty-draft");
   fixture.canOperate = false;
   await using screen = await render(
-    <LinxComposerBanner environmentId={environmentId} draftTarget={draftTarget} />,
+    <LinxExpertPicker environmentId={environmentId} draftTarget={draftTarget} />,
   );
-  await expect.element(screen.getByText("Expert", { exact: true })).not.toBeInTheDocument();
+  const picker = screen.getByRole("button", { name: "Choose Expert" });
+  await expect.element(picker).not.toBeInTheDocument();
   fixture.canOperate = true;
   fixture.hasExpert = false;
   await screen.rerender(
-    <LinxComposerBanner environmentId={environmentId} draftTarget={draftTarget} />,
+    <LinxExpertPicker environmentId={environmentId} draftTarget={draftTarget} />,
   );
+  await expect.element(picker).toHaveTextContent("No Expert");
+  await picker.click();
   await expect
-    .element(screen.getByText("No Expert snapshots yet. You can still start a regular thread."))
-    .toBeInTheDocument();
-  await expect
-    .element(screen.getByRole("combobox", { name: "Choose Expert" }))
-    .not.toBeInTheDocument();
+    .element(page.getByText("No Expert snapshots yet. You can still start a regular thread."))
+    .toBeVisible();
+  await expect.element(page.getByRole("menuitemradio", { name: "No Expert" })).toBeVisible();
 });
