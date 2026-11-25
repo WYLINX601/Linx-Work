@@ -74,6 +74,7 @@ import {
   LinxExpertContextToolkit,
   LinxMcpToolkit,
   LinxSkillToolkit,
+  LinxSuiteToolkit,
 } from "./toolkits/linx/tools.ts";
 import * as LinxExpertContextHandlers from "./toolkits/linx/handlers.ts";
 import * as LinxMcpServices from "../linx/LinxMcpServices.ts";
@@ -1415,10 +1416,12 @@ export const layerPreviewToolkit = Layer.mergeAll(
   layerPreviewSnapshotRegistration,
 );
 
+const orchestratorServiceLayer = OrchestratorMcpService.layer;
+
 export const layerOrchestratorToolkit = toolkitRegistration(
   OrchestratorToolkit,
   OrchestratorHandlers.layer,
-).pipe(Layer.provide(OrchestratorMcpService.layer), Layer.provide(ThreadMetadataMcpService.layer));
+).pipe(Layer.provide(orchestratorServiceLayer), Layer.provide(ThreadMetadataMcpService.layer));
 
 export const layerThreadToolkit = toolkitRegistration(ThreadToolkit, ThreadHandlers.layer);
 const layerWorkflowToolkit = toolkitRegistration(WorkflowToolkit, WorkflowHandlers.layer);
@@ -1458,6 +1461,11 @@ export const layerLinxMcpToolkit = toolkitRegistration(
   LinxMcpToolkit,
   LinxExpertContextHandlers.mcpLayer,
 ).pipe(Layer.provide(LinxMcpServices.layer));
+
+const layerLinxSuiteToolkit = toolkitRegistration(
+  LinxSuiteToolkit,
+  LinxExpertContextHandlers.suiteLayer,
+).pipe(Layer.provide(LinxMcpServices.layer), Layer.provide(orchestratorServiceLayer));
 
 export const layerProjectRegistration = toolkitRegistration(ProjectToolkit, ProjectHandlers.layer);
 
@@ -1549,6 +1557,7 @@ export const layerTools = Layer.mergeAll(
   layerLinxExpertContextToolkit,
   layerLinxSkillToolkit,
   layerLinxMcpToolkit,
+  layerLinxSuiteToolkit,
 );
 
 const layerToolExposure = Layer.effect(

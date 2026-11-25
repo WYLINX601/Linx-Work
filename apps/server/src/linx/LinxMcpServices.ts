@@ -18,6 +18,11 @@ import { LinxSqlClient, layer as linxSqliteLayer } from "./persistence/LinxSqlit
 import { runLinxMigrations } from "./persistence/Migrations.ts";
 import { SkillPackageService, layer as skillPackageLayer } from "./skill/SkillPackageService.ts";
 import {
+  SuiteDelegationService,
+  layer as suiteDelegationLayer,
+} from "./suite/SuiteDelegationService.ts";
+import { SuiteService, layer as suiteLayer } from "./suite/SuiteService.ts";
+import {
   layer as threadBindingLayer,
   ThreadBindingRepository,
 } from "./thread/ThreadBindingRepository.ts";
@@ -29,6 +34,8 @@ export const layerWithSecrets = (
   | ExpertSnapshotService
   | ThreadBindingRepository
   | SkillPackageService
+  | SuiteService
+  | SuiteDelegationService
   | McpConnectionService
   | ExternalMcpClient
   | SecretStore
@@ -43,10 +50,17 @@ export const layerWithSecrets = (
       const migrated = Layer.effectDiscard(runLinxMigrations).pipe(Layer.provideMerge(sqlite));
       const resources = resourcesLayer(config.linxResourceDir);
       const skills = skillPackageLayer.pipe(Layer.provide(resources));
+      const suites = suiteLayer.pipe(Layer.provide(expertSnapshotLayer));
+      const suiteDelegations = suiteDelegationLayer.pipe(
+        Layer.provide(suites),
+        Layer.provide(threadBindingLayer),
+      );
       return Layer.mergeAll(
         expertSnapshotLayer,
         threadBindingLayer,
         skills,
+        suites,
+        suiteDelegations,
         mcpConnectionLayer.pipe(
           Layer.provideMerge(externalMcpLayer),
           Layer.provideMerge(secretLayer),

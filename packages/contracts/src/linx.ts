@@ -203,6 +203,119 @@ export const LinxArchiveSkillInput = Schema.Struct({
 });
 export type LinxArchiveSkillInput = typeof LinxArchiveSkillInput.Type;
 
+export const LinxSuiteMemberInput = Schema.Struct({
+  memberKey: TrimmedNonEmptyString,
+  expertId: TrimmedNonEmptyString,
+  revision: NonNegativeInt,
+  modelSelection: Schema.optionalKey(ModelSelection),
+  runtimeMode: Schema.optionalKey(RuntimeMode),
+  interactionMode: Schema.optionalKey(ProviderInteractionMode),
+  title: Schema.optionalKey(TrimmedNonEmptyString),
+});
+export type LinxSuiteMemberInput = typeof LinxSuiteMemberInput.Type;
+
+export const LinxSuitePolicy = Schema.Struct({
+  maxActiveDelegations: NonNegativeInt,
+});
+export type LinxSuitePolicy = typeof LinxSuitePolicy.Type;
+
+export const LinxSaveSuiteInput = Schema.Struct({
+  suiteId: Schema.optionalKey(TrimmedNonEmptyString),
+  expectedRevision: Schema.optionalKey(NonNegativeInt),
+  name: TrimmedNonEmptyString,
+  leadExpertId: TrimmedNonEmptyString,
+  leadExpertRevision: NonNegativeInt,
+  members: Schema.Array(LinxSuiteMemberInput),
+  policy: LinxSuitePolicy,
+});
+export type LinxSaveSuiteInput = typeof LinxSaveSuiteInput.Type;
+
+export const LinxArchiveSuiteInput = Schema.Struct({
+  suiteId: TrimmedNonEmptyString,
+  expectedRevision: NonNegativeInt,
+});
+export type LinxArchiveSuiteInput = typeof LinxArchiveSuiteInput.Type;
+
+export const LinxSuiteMember = Schema.Struct({
+  memberKey: TrimmedNonEmptyString,
+  expertId: TrimmedNonEmptyString,
+  revision: NonNegativeInt,
+  snapshotId: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString,
+  modelSelection: Schema.optionalKey(ModelSelection),
+  runtimeMode: Schema.optionalKey(RuntimeMode),
+  interactionMode: Schema.optionalKey(ProviderInteractionMode),
+});
+export type LinxSuiteMember = typeof LinxSuiteMember.Type;
+
+export const LinxSuiteSummary = Schema.Struct({
+  suiteId: TrimmedNonEmptyString,
+  name: TrimmedNonEmptyString,
+  currentRevision: NonNegativeInt,
+  leadExpertId: TrimmedNonEmptyString,
+  memberCount: NonNegativeInt,
+  archived: Schema.Boolean,
+  updatedAt: TrimmedNonEmptyString,
+});
+export type LinxSuiteSummary = typeof LinxSuiteSummary.Type;
+
+export const LinxSuiteDetail = Schema.Struct({
+  ...LinxSuiteSummary.fields,
+  leadExpertRevision: NonNegativeInt,
+  leadSnapshotId: TrimmedNonEmptyString,
+  members: Schema.Array(LinxSuiteMember),
+  policy: LinxSuitePolicy,
+});
+export type LinxSuiteDetail = typeof LinxSuiteDetail.Type;
+
+export const LinxLaunchSuiteInput = Schema.Struct({
+  clientRequestId: TrimmedNonEmptyString,
+  suiteId: TrimmedNonEmptyString,
+  suiteRevision: Schema.optionalKey(NonNegativeInt),
+  projectId: ProjectId,
+  title: TrimmedNonEmptyString,
+  modelSelection: ModelSelection,
+  runtimeMode: RuntimeMode,
+  interactionMode: ProviderInteractionMode,
+  workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
+  initialMessage: Schema.Struct({ text: Schema.String }),
+});
+export type LinxLaunchSuiteInput = typeof LinxLaunchSuiteInput.Type;
+
+export const LinxSuiteLaunchResult = Schema.Struct({
+  threadId: ThreadId,
+  suiteSnapshotId: TrimmedNonEmptyString,
+  leadSnapshotId: TrimmedNonEmptyString,
+  resumed: Schema.Boolean,
+});
+export type LinxSuiteLaunchResult = typeof LinxSuiteLaunchResult.Type;
+
+export const LinxSuiteBinding = Schema.Struct({
+  threadId: ThreadId,
+  suiteId: TrimmedNonEmptyString,
+  suiteRevision: NonNegativeInt,
+  suiteSnapshotId: TrimmedNonEmptyString,
+  leadExpertId: TrimmedNonEmptyString,
+  leadRevision: NonNegativeInt,
+  projectId: ProjectId,
+  createdAt: TrimmedNonEmptyString,
+});
+export type LinxSuiteBinding = typeof LinxSuiteBinding.Type;
+
+export const LinxSuiteDelegateInput = Schema.Struct({
+  memberKey: TrimmedNonEmptyString,
+  clientRequestId: TrimmedNonEmptyString,
+  objective: TrimmedNonEmptyString,
+  acceptance: Schema.String,
+});
+export type LinxSuiteDelegateInput = typeof LinxSuiteDelegateInput.Type;
+
+export const LinxSuiteDelegateResult = Schema.Struct({
+  memberKey: TrimmedNonEmptyString,
+  taskId: TrimmedNonEmptyString,
+});
+export type LinxSuiteDelegateResult = typeof LinxSuiteDelegateResult.Type;
+
 export const LinxLaunchThreadInput = Schema.Struct({
   clientRequestId: TrimmedNonEmptyString,
   snapshotId: TrimmedNonEmptyString,

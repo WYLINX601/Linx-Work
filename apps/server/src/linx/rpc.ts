@@ -6,6 +6,8 @@ import { ExpertSnapshotService } from "./expert/ExpertSnapshotService.ts";
 import { McpConnectionService } from "./mcp/McpConnectionService.ts";
 import { LinxResourceStore } from "./persistence/LinxResourceStore.ts";
 import { SkillPackageService } from "./skill/SkillPackageService.ts";
+import { SuiteLaunchService } from "./suite/SuiteLaunchService.ts";
+import { SuiteService } from "./suite/SuiteService.ts";
 import { LinxLaunchService } from "./thread/LinxLaunchService.ts";
 import { ThreadBindingRepository } from "./thread/ThreadBindingRepository.ts";
 
@@ -50,6 +52,8 @@ export const layer = LinxWsRpcGroup.toLayer(
     const bindings = yield* ThreadBindingRepository;
     const resources = yield* LinxResourceStore;
     const skills = yield* SkillPackageService;
+    const suites = yield* SuiteService;
+    const suiteLaunches = yield* SuiteLaunchService;
     const connections = yield* McpConnectionService;
     const launches = yield* LinxLaunchService;
 
@@ -106,6 +110,13 @@ export const layer = LinxWsRpcGroup.toLayer(
         mapped(skills.get(packageId, revision)),
       [WS_METHODS.linxSkillsArchive]: ({ packageId, expectedRevision }) =>
         mapped(skills.archive(packageId, expectedRevision)),
+      [WS_METHODS.linxSuitesList]: () => mapped(suites.list()),
+      [WS_METHODS.linxSuitesGet]: ({ suiteId }) => mapped(suites.get(suiteId)),
+      [WS_METHODS.linxSuitesSave]: (input) => mapped(suites.save(input)),
+      [WS_METHODS.linxSuitesArchive]: ({ suiteId, expectedRevision }) =>
+        mapped(suites.archive(suiteId, expectedRevision)),
+      [WS_METHODS.linxSuitesLaunch]: (input) => suiteLaunches.launch(input),
+      [WS_METHODS.linxSuitesGetBinding]: ({ threadId }) => suiteLaunches.getBinding(threadId),
       [WS_METHODS.linxConnectionsList]: () => mapped(connections.list()),
       [WS_METHODS.linxConnectionsGet]: ({ connectionId }) => mapped(connections.get(connectionId)),
       [WS_METHODS.linxConnectionsTest]: (input) =>

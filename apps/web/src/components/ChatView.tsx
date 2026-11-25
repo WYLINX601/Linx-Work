@@ -356,6 +356,7 @@ import { useIncrementalTimelineEntries } from "../hooks/useIncrementalTimelineEn
 import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./chat/ComposerBannerStack";
 import { LinxExpertPicker } from "./chat/LinxExpertPicker";
+import { LinxSuitePicker } from "./chat/LinxSuitePicker";
 import { modelFallbackBannerItem } from "./chat/ComposerUsageLimits";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { resolveThreadSyncPhase } from "../threadSync";
@@ -3866,6 +3867,14 @@ export default function ChatView(props: ChatViewProps) {
                                 expertPicker={
                                   isLocalDraftThread ? (
                                     <LinxExpertPicker
+                                      environmentId={environmentId}
+                                      draftTarget={composerDraftTarget}
+                                    />
+                                  ) : null
+                                }
+                                suitePicker={
+                                  isLocalDraftThread ? (
+                                    <LinxSuitePicker
                                       environmentId={environmentId}
                                       draftTarget={composerDraftTarget}
                                     />

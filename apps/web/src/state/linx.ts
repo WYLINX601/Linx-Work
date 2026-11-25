@@ -1,6 +1,9 @@
 import {
   archiveLinxExpert,
   archiveLinxSkill,
+  archiveLinxSuite,
+  launchLinxSuite,
+  saveLinxSuite,
   disableLinxConnection,
   importLinxSkill,
   launchLinxThread,
@@ -46,6 +49,18 @@ export const linxSkillPackages = createEnvironmentRpcQueryAtomFamily(connectionA
   staleTimeMs: 0,
 });
 
+export const linxSuites = createEnvironmentRpcQueryAtomFamily(connectionAtomRuntime, {
+  label: "web:linx:suites",
+  tag: WS_METHODS.linxSuitesList,
+  staleTimeMs: 0,
+});
+
+export const linxSuiteDetail = createEnvironmentRpcQueryAtomFamily(connectionAtomRuntime, {
+  label: "web:linx:suite",
+  tag: WS_METHODS.linxSuitesGet,
+  staleTimeMs: 0,
+});
+
 export const linxMcpConnections = createEnvironmentRpcQueryAtomFamily(connectionAtomRuntime, {
   label: "web:linx:mcp-connections",
   tag: WS_METHODS.linxConnectionsList,
@@ -56,6 +71,21 @@ export const linxMcpConnection = createEnvironmentRpcQueryAtomFamily(connectionA
   label: "web:linx:mcp-connection",
   tag: WS_METHODS.linxConnectionsGet,
   staleTimeMs: 0,
+});
+
+export const launchSuiteThread = createEnvironmentCommand(connectionAtomRuntime, {
+  label: "web:linx:launch-suite",
+  execute: launchLinxSuite,
+});
+
+export const saveSuite = createEnvironmentCommand(connectionAtomRuntime, {
+  label: "web:linx:save-suite",
+  execute: saveLinxSuite,
+});
+
+export const archiveSuite = createEnvironmentCommand(connectionAtomRuntime, {
+  label: "web:linx:archive-suite",
+  execute: archiveLinxSuite,
 });
 
 export const launchExpertThread = createEnvironmentCommand(connectionAtomRuntime, {

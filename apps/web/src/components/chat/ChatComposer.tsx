@@ -373,6 +373,7 @@ export interface ChatComposerProps {
   composerDraftTarget: ScopedThreadRef | DraftId;
   environmentId: EnvironmentId;
   expertPicker?: React.ReactNode;
+  suitePicker?: React.ReactNode;
   canOperateThread: boolean;
   attachmentUploadsCapabilityKnown: boolean;
   supportsAttachmentUploads: boolean;
@@ -4078,6 +4079,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       dictationTakesFooter && "hidden",
                     )}
                   >
+                    {props.suitePicker}
                     {props.expertPicker}
                     {composerControls}
                   </div>
@@ -4184,6 +4186,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       !restingControlsVisible && "invisible",
                     )}
                   >
+                    {props.suitePicker}
                     {props.expertPicker}
                     {composerControls}
                   </div>

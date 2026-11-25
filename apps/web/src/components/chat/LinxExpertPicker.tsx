@@ -104,6 +104,7 @@ export function LinxExpertPicker({
               } else {
                 const { personaPreview: _preview, ...expert } = next;
                 store.setLinxLaunch(draftTarget, { environmentId, expert, attempt: null });
+                store.setLinxSuiteLaunch(draftTarget, null);
               }
             }}
           >

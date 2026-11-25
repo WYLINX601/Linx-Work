@@ -15,6 +15,9 @@ import {
   type LinxImportSkillInput,
   type LinxLaunchThreadInput,
   type LinxSaveExpertInput,
+  type LinxLaunchSuiteInput,
+  type LinxSaveSuiteInput,
+  type LinxArchiveSuiteInput,
   type LinxSaveMcpConnectionInput,
   type LinxDisableMcpConnectionInput,
   type LinxTestMcpConnectionInput,
@@ -812,6 +815,24 @@ export const archiveLinxSkill = Effect.fn("EnvironmentCommands.archiveLinxSkill"
   input: LinxArchiveSkillInput,
 ) {
   return yield* request(WS_METHODS.linxSkillsArchive, input);
+});
+
+export const launchLinxSuite = Effect.fn("EnvironmentCommands.launchLinxSuite")(function* (
+  input: LinxLaunchSuiteInput,
+) {
+  return yield* resendAfterSocketLoss(request(WS_METHODS.linxSuitesLaunch, input));
+});
+
+export const saveLinxSuite = Effect.fn("EnvironmentCommands.saveLinxSuite")(function* (
+  input: LinxSaveSuiteInput,
+) {
+  return yield* request(WS_METHODS.linxSuitesSave, input);
+});
+
+export const archiveLinxSuite = Effect.fn("EnvironmentCommands.archiveLinxSuite")(function* (
+  input: LinxArchiveSuiteInput,
+) {
+  return yield* request(WS_METHODS.linxSuitesArchive, input);
 });
 
 export const saveLinxConnection = Effect.fn("EnvironmentCommands.saveLinxConnection")(function* (

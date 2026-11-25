@@ -3757,6 +3757,14 @@
   "444c48368a590033": "{expert} · v{revision} · {hash}",
   "c36f6e608e1eea54": "Choose Expert",
   "70392d289cabcc8a": "Expert",
+  "dc3c888e27b0ca21": "Loading suites…",
+  "613289bf91acc794": "Suites could not be loaded.",
+  "44e6ad29ad07da18": "No suites yet. Create one in Settings → Linx experts.",
+  "a51b2a9bfe07c04b": "Choose an immutable Suite snapshot for the first turn.",
+  "dcb7425508b732a4": "{suite} · v{revision} · {members} members",
+  "a794688c51e93508": "Choose Suite",
+  "af250cdedf798943": "No Suite",
+  "88d391d4c674df11": "Suite",
   "e86a87be27aeccc2": "Frozen Expert snapshot: {label}",
   "a5b2e17bb09ae018": "Loading Expert binding…",
   "0b00a5109e67b51c": "Expert binding could not be read.",
@@ -4874,6 +4882,9 @@
   "837c3082352db701": "まずプロジェクトを選択してください",
   "afd7fcc36ec8ad4c": "この下書きは利用可能なプロジェクトを指していません。",
   "6089053212c74376": "新しいワークツリーのモードで送信する前に、ベースブランチを選択してください。",
+  "17ea0c545b420a11": "Start a Suite thread with text only. Remove attachments and added context first.",
+  "6f9c557e743a700e": "Choose one model to start a Suite thread.",
+  "5aa14161b001692f": "Could not start the Suite thread. Your draft was kept.",
   "c3378999e6fe42a1": "Start an Expert thread with text only. Remove attachments and added context first.",
   "167c8aa1e3a7e860": "Choose one model to start an Expert thread.",
   "2fbc8c42ddb33b8b": "Could not start the Expert thread. Your draft was kept.",
@@ -9103,6 +9114,40 @@
     },
     " tools"
   ],
+  "a130c6dcf5b0f710": "Suites",
+  "8e12c6b0fb6be761": "A Suite freezes a Lead and its members. Members are delegated work through T3's native tasks.",
+  "648ca72945571011": "New suite",
+  "1abb544dc20eacd8": "No suites yet.",
+  "da972174bf5af731": "Edit suite",
+  "3070a60b00ad489a": "名前",
+  "8e547b952bb7f4b6": "Lead expert",
+  "cf63aefc7b6a9114": "Choose a Lead",
+  "0031b0757899c9de": "Members",
+  "0328e3ab168bc18e": "No other experts available.",
+  "81195da32088c24a": "Create suite",
+  "fe2b3360fed5500f": [
+    "v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " · ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    },
+    " members"
+  ],
+  "5be3259dc52851fc": [
+    "v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
   "2fbcbe2d8c56a245": "優先",
   "479a7eeae96511fc": "通常",
   "fd16014a2f23dea9": "低頻度",
@@ -9324,7 +9369,6 @@
   "0d612431666169dd": "チェックアウト",
   "511bbad48f37b6a2": "共有設定を変更するには、このグループ内のすべてのチェックアウトを変更する権限が必要です。",
   "bfe0a29411626eff": "この接続ではこのプロジェクトを変更できません。",
-  "3070a60b00ad489a": "名前",
   "0b4779a1825c85bc": "サイドバーとスレッド一覧に表示される、このプロジェクトグループの共通の名前です。",
   "f68cbda4df83d739": "プロジェクト名をデフォルトにリセット",
   "56e37b85027e8431": "プロジェクトのアイコン",

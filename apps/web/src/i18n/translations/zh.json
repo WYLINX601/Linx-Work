@@ -3767,6 +3767,14 @@
   "444c48368a590033": "{expert} · v{revision} · {hash}",
   "c36f6e608e1eea54": "选择专家",
   "70392d289cabcc8a": "专家",
+  "dc3c888e27b0ca21": "Loading suites…",
+  "613289bf91acc794": "Suites could not be loaded.",
+  "44e6ad29ad07da18": "No suites yet. Create one in Settings → Linx experts.",
+  "a51b2a9bfe07c04b": "Choose an immutable Suite snapshot for the first turn.",
+  "dcb7425508b732a4": "{suite} · v{revision} · {members} members",
+  "a794688c51e93508": "Choose Suite",
+  "af250cdedf798943": "No Suite",
+  "88d391d4c674df11": "Suite",
   "e86a87be27aeccc2": "已冻结的专家快照：{label}",
   "a5b2e17bb09ae018": "正在加载专家绑定…",
   "0b00a5109e67b51c": "无法读取专家绑定。",
@@ -4891,6 +4899,9 @@
   "837c3082352db701": "请先选择项目",
   "afd7fcc36ec8ad4c": "这个草稿关联的项目已不可用。",
   "6089053212c74376": "在“新工作树”模式下发送前，请先选择基准分支。",
+  "17ea0c545b420a11": "Start a Suite thread with text only. Remove attachments and added context first.",
+  "6f9c557e743a700e": "Choose one model to start a Suite thread.",
+  "5aa14161b001692f": "Could not start the Suite thread. Your draft was kept.",
   "c3378999e6fe42a1": "专家会话只能用纯文本启动。请先移除附件和附加上下文。",
   "167c8aa1e3a7e860": "请选择一个模型来启动专家会话。",
   "2fbc8c42ddb33b8b": "无法启动专家会话。草稿已保留。",
@@ -9163,6 +9174,40 @@
     },
     " tools"
   ],
+  "a130c6dcf5b0f710": "Suites",
+  "8e12c6b0fb6be761": "A Suite freezes a Lead and its members. Members are delegated work through T3's native tasks.",
+  "648ca72945571011": "New suite",
+  "1abb544dc20eacd8": "No suites yet.",
+  "da972174bf5af731": "Edit suite",
+  "3070a60b00ad489a": "名称",
+  "8e547b952bb7f4b6": "Lead expert",
+  "cf63aefc7b6a9114": "Choose a Lead",
+  "0031b0757899c9de": "Members",
+  "0328e3ab168bc18e": "No other experts available.",
+  "81195da32088c24a": "Create suite",
+  "fe2b3360fed5500f": [
+    "v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " · ",
+    {
+      "i": 2,
+      "k": "_gt_value_2",
+      "v": "v"
+    },
+    " members"
+  ],
+  "5be3259dc52851fc": [
+    "v",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
   "2fbcbe2d8c56a245": "优先",
   "479a7eeae96511fc": "普通",
   "fd16014a2f23dea9": "较少使用",
@@ -9384,7 +9429,6 @@
   "0d612431666169dd": "工作副本",
   "511bbad48f37b6a2": "修改共享设置需要对本组中的每个工作副本都有修改权限。",
   "bfe0a29411626eff": "此连接无法更改此项目。",
-  "3070a60b00ad489a": "名称",
   "0b4779a1825c85bc": "此项目组在侧边栏和会话列表中共用的名称。",
   "f68cbda4df83d739": "重置项目名称为默认值",
   "56e37b85027e8431": "项目图标",

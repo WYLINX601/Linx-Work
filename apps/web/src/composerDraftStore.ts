@@ -23,7 +23,9 @@ import {
   PastedTextAttachmentSource,
   type PreviewAnnotationPayload,
   type LinxExpertSummary,
+  type LinxLaunchSuiteInput,
   type LinxLaunchThreadInput,
+  type LinxSuiteSummary,
   RuntimeMode,
   ThreadContextRecord,
   EnvironmentContextRecord,
@@ -471,6 +473,12 @@ export interface LinxDraftLaunch {
   readonly attempt: LinxLaunchThreadInput | null;
 }
 
+export interface LinxSuiteDraftLaunch {
+  readonly environmentId: EnvironmentId;
+  readonly suite: LinxSuiteSummary;
+  readonly attempt: LinxLaunchSuiteInput | null;
+}
+
 export interface ComposerThreadDraftState {
   prompt: string;
   images: ComposerImageAttachment[];
@@ -491,6 +499,7 @@ export interface ComposerThreadDraftState {
   interactionMode: ProviderInteractionMode | null;
   /** Only the open draft owns the pending launch; never persisted with browser state. */
   linxLaunch?: LinxDraftLaunch;
+  linxSuiteLaunch?: LinxSuiteDraftLaunch;
 }
 
 export function composerDraftHasUserContent(
@@ -654,6 +663,10 @@ interface ComposerDraftStoreState {
   setStickyModelSelection: (modelSelection: ModelSelection | null | undefined) => void;
   setPrompt: (threadRef: ComposerThreadTarget, prompt: string) => void;
   setLinxLaunch: (threadRef: ComposerThreadTarget, launch: LinxDraftLaunch | null) => void;
+  setLinxSuiteLaunch: (
+    threadRef: ComposerThreadTarget,
+    launch: LinxSuiteDraftLaunch | null,
+  ) => void;
   setTerminalContexts: (threadRef: ComposerThreadTarget, contexts: TerminalContextDraft[]) => void;
   setModelSelection: (
     threadRef: ComposerThreadTarget,
@@ -1052,7 +1065,8 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
     draft.activeProvider === null &&
     draft.runtimeMode === null &&
     draft.interactionMode === null &&
-    draft.linxLaunch === undefined
+    draft.linxLaunch === undefined &&
+    draft.linxSuiteLaunch === undefined
   );
 }
 
@@ -3351,6 +3365,19 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             const current = state.draftsByThreadKey[threadKey] ?? createEmptyThreadDraft();
             const { linxLaunch: _previous, ...rest } = current;
             const next = launch === null ? rest : { ...rest, linxLaunch: launch };
+            const draftsByThreadKey = { ...state.draftsByThreadKey };
+            if (shouldRemoveDraft(next)) delete draftsByThreadKey[threadKey];
+            else draftsByThreadKey[threadKey] = next;
+            return { draftsByThreadKey };
+          });
+        },
+        setLinxSuiteLaunch: (threadRef, launch) => {
+          const threadKey = resolveComposerDraftKey(get(), threadRef);
+          if (threadKey === null) return;
+          set((state) => {
+            const current = state.draftsByThreadKey[threadKey] ?? createEmptyThreadDraft();
+            const { linxSuiteLaunch: _previous, ...rest } = current;
+            const next = launch === null ? rest : { ...rest, linxSuiteLaunch: launch };
             const draftsByThreadKey = { ...state.draftsByThreadKey };
             if (shouldRemoveDraft(next)) delete draftsByThreadKey[threadKey];
             else draftsByThreadKey[threadKey] = next;

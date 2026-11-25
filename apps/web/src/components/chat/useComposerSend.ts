@@ -24,6 +24,7 @@ import {
   AuthOrchestrationOperateScope,
   DEFAULT_MODEL,
   type EnvironmentId,
+  type LinxLaunchSuiteInput,
   type LinxLaunchThreadInput,
   type ModelSelection,
   type PreviewAnnotationPayload,
@@ -126,7 +127,7 @@ import { fileAttachmentCapabilityBlockReason } from "./composerAttachmentFiles";
 import { useLinkedEnvironments } from "../../state/peerLinks";
 import { readEnvironmentScope } from "../../state/session";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
-import { launchExpertThread } from "../../state/linx";
+import { launchExpertThread, launchSuiteThread } from "../../state/linx";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   threadContextsOutsideEnvironment,
@@ -386,6 +387,7 @@ export function useComposerSend(input: ComposerSendInput) {
     reportFailure: false,
   });
   const launchExpert = useOrchestrationCommand(launchExpertThread, { reportFailure: false });
+  const launchSuite = useOrchestrationCommand(launchSuiteThread, { reportFailure: false });
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
     reportFailure: false,
   });
@@ -1076,6 +1078,89 @@ export function useComposerSend(input: ComposerSendInput) {
     }
 
     const draftStore = useComposerDraftStore.getState();
+    const suite = isLocalDraftThread
+      ? draftStore.getComposerDraft(composerDraftTarget)?.linxSuiteLaunch
+      : undefined;
+    if (suite?.environmentId === environmentId) {
+      if (!composerHoldsOnlyText || outgoingMessageContext !== undefined || !messageTextForSend) {
+        setThreadError(
+          threadIdForSend,
+          m(
+            msg("Start a Suite thread with text only. Remove attachments and added context first."),
+          ),
+        );
+        return;
+      }
+      if (multipleModelSelections !== null) {
+        setThreadError(threadIdForSend, m(msg("Choose one model to start a Suite thread.")));
+        return;
+      }
+      const payload: Omit<LinxLaunchSuiteInput, "clientRequestId"> = {
+        suiteId: suite.suite.suiteId,
+        projectId: activeProject.id,
+        title: deriveThreadTitleSeed({ text: messageTextForSend, attachments: [] }, m),
+        modelSelection: ctxSelectedModelSelection,
+        runtimeMode,
+        interactionMode: DEFAULT_INTERACTION_MODE,
+        workspaceStrategy: baseBranchForWorktree
+          ? {
+              type: "worktree",
+              baseRef: baseBranchForWorktree,
+              ...(startFromOrigin ? { startFromOrigin: true } : {}),
+              ...(worktreeRepositories ? { repositories: worktreeRepositories } : {}),
+            }
+          : activeThread.worktreePath
+            ? {
+                type: "existing_worktree",
+                worktreePath: activeThread.worktreePath,
+                ...(activeThreadBranch ? { branch: activeThreadBranch } : {}),
+              }
+            : { type: "root", ...(activeThreadBranch ? { branch: activeThreadBranch } : {}) },
+        initialMessage: { text: outgoingMessageText },
+      };
+      const previous = suite.attempt;
+      const clientRequestId =
+        previous !== null &&
+        JSON.stringify(previous) ===
+          JSON.stringify({ ...payload, clientRequestId: previous.clientRequestId })
+          ? previous.clientRequestId
+          : newMessageId();
+      const attempt = { ...payload, clientRequestId };
+      draftStore.setLinxSuiteLaunch(composerDraftTarget, { ...suite, attempt });
+      sendInFlightRef.current = true;
+      if (isCurrentRouteThread())
+        beginLocalDispatch({ preparingWorktree: false, submissionIntent: "foreground" });
+      const result = await launchSuite({ environmentId, input: attempt }).finally(() => {
+        sendInFlightRef.current = false;
+        if (isCurrentRouteThread()) resetLocalDispatch();
+      });
+      if (result._tag === "Failure") {
+        if (!isAtomCommandInterrupted(result)) {
+          setThreadError(
+            threadIdForSend,
+            errorDisplayMessage(squashAtomCommandFailure(result), m) ??
+              m(msg("Could not start the Suite thread. Your draft was kept.")),
+          );
+        }
+        return;
+      }
+      const threadRef = scopeThreadRef(environmentId, result.value.threadId);
+      const latest = useComposerDraftStore.getState();
+      if (latest.getComposerDraft(composerDraftTarget)?.prompt === promptAtSend) {
+        clearComposerDraftContent(composerDraftTarget);
+      }
+      latest.setLinxSuiteLaunch(composerDraftTarget, null);
+      latest.markDraftThreadPromoting(composerDraftTarget, threadRef);
+      if (isCurrentRouteThread()) {
+        await navigate({
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(threadRef),
+        });
+      }
+      void recordPromptSent(environmentId);
+      return;
+    }
+
     const expert = isLocalDraftThread
       ? draftStore.getComposerDraft(composerDraftTarget)?.linxLaunch
       : undefined;
@@ -1850,6 +1935,8 @@ export function useComposerSend(input: ComposerSendInput) {
       sendInFlightRef.current ||
       readPendingEnvironmentChange() !== null ||
       useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.linxLaunch
+        ?.environmentId === environmentId ||
+      useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.linxSuiteLaunch
         ?.environmentId === environmentId
         ? null
         : refreshBeforeSend();

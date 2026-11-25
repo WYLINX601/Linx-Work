@@ -6,6 +6,7 @@ import Migration001 from "./Migrations/001_Initial.ts";
 import Migration002 from "./Migrations/002_ExpertDefinitionsSkills.ts";
 import Migration003 from "./Migrations/003_McpConnections.ts";
 import Migration004 from "./Migrations/004_McpConnectionAuth.ts";
+import Migration005 from "./Migrations/005_Suites.ts";
 import { LinxSqlClient } from "./LinxSqlite.ts";
 
 const migrations = Migrator.fromRecord({
@@ -13,6 +14,7 @@ const migrations = Migrator.fromRecord({
   "002_ExpertDefinitionsSkills": Migration002,
   "003_McpConnections": Migration003,
   "004_McpConnectionAuth": Migration004,
+  "005_Suites": Migration005,
 });
 
 const run = Migrator.make({});

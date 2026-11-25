@@ -133,6 +133,13 @@ export class ExpertSnapshotService extends Context.Service<
       LinxExpertSnapshot | null,
       LinxSnapshotIntegrityError | LinxStorageError | SqlError.SqlError
     >;
+    readonly getByRevision: (
+      expertId: string,
+      revision: number,
+    ) => Effect.Effect<
+      LinxExpertSnapshot | null,
+      LinxSnapshotIntegrityError | LinxStorageError | SqlError.SqlError
+    >;
     readonly listLatest: () => Effect.Effect<
       ReadonlyArray<LinxExpertSummary>,
       LinxSnapshotIntegrityError | SqlError.SqlError
@@ -213,6 +220,15 @@ export const layer = Layer.effect(
       return yield* verifiedSnapshot(row);
     });
 
+    const getByRevision = Effect.fn("ExpertSnapshotService.getByRevision")(function* (
+      expertId: string,
+      revision: number,
+    ) {
+      const row = (yield* selectByRevision(expertId, revision))[0];
+      if (row === undefined) return null;
+      return yield* verifiedSnapshot(row);
+    });
+
     const listLatest = Effect.fn("ExpertSnapshotService.listLatest")(function* () {
       const rows = yield* sql<SnapshotRow>`
         SELECT snapshot.snapshot_id, snapshot.expert_id, snapshot.revision,
@@ -244,6 +260,6 @@ export const layer = Layer.effect(
       return summaries;
     });
 
-    return ExpertSnapshotService.of({ create, getById, listLatest });
+    return ExpertSnapshotService.of({ create, getById, getByRevision, listLatest });
   }),
 );

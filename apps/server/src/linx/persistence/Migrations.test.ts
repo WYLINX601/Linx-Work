@@ -27,6 +27,10 @@ it.effect("creates only Linx tables under the Linx migration ledger", () => {
     assert.include(names, "run_skill_assemblies");
     assert.include(names, "mcp_connections");
     assert.include(names, "mcp_connection_revisions");
+    assert.include(names, "suite_definitions");
+    assert.include(names, "suite_revisions");
+    assert.include(names, "suite_snapshots");
+    assert.include(names, "suite_delegations");
     assert.include(names, "thread_expert_bindings");
     assert.include(names, "linx_outbox");
     assert.notInclude(names, "orchestration_events");
@@ -44,7 +48,7 @@ it.effect("records the Linx schema version once", () => {
     const rows = yield* sql<{ readonly count: number }>`
       SELECT COUNT(*) AS count FROM linx_migrations
     `;
-    assert.equal(rows[0]?.count, 4);
+    assert.equal(rows[0]?.count, 5);
   }).pipe(Effect.provide(layer));
 });
 

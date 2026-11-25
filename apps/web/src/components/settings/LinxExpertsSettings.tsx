@@ -32,6 +32,7 @@ import { Input } from "../ui/input";
 import { Spinner } from "../ui/spinner";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
+import { LinxSuiteSettings } from "./LinxSuiteSettings";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 interface SkillChoice {
@@ -772,6 +773,8 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
           </ul>
         </div>
       </SettingsSection>
+
+      <LinxSuiteSettings environmentId={environmentId} experts={experts} />
 
       <SettingsSection title={gt("Skill packages")}>
         <p className="px-4 pt-3 text-sm text-muted-foreground">
