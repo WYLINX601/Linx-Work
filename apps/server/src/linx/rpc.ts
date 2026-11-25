@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 
 import { ExpertDefinitionService } from "./expert/ExpertDefinitionService.ts";
 import { ExpertSnapshotService } from "./expert/ExpertSnapshotService.ts";
+import { McpConnectionService } from "./mcp/McpConnectionService.ts";
 import { LinxResourceStore } from "./persistence/LinxResourceStore.ts";
 import { SkillPackageService } from "./skill/SkillPackageService.ts";
 import { LinxLaunchService } from "./thread/LinxLaunchService.ts";
@@ -22,6 +23,8 @@ const mapError = (error: { readonly _tag: string }): LinxFailure => {
       return failure("dependency_missing", "A referenced Linx item is missing or does not match.");
     case "LinxLimitExceededError":
       return failure("limit_exceeded", "The skill package exceeds an import limit.");
+    case "LinxMcpTransportError":
+      return failure("provider_unavailable", "The external MCP endpoint could not be used.");
     case "LinxSnapshotConflictError":
       return failure("idempotency_conflict", "This expert revision already has different content.");
     case "LinxSnapshotIntegrityError":
@@ -45,6 +48,7 @@ export const layer = LinxWsRpcGroup.toLayer(
     const bindings = yield* ThreadBindingRepository;
     const resources = yield* LinxResourceStore;
     const skills = yield* SkillPackageService;
+    const connections = yield* McpConnectionService;
     const launches = yield* LinxLaunchService;
 
     return LinxWsRpcGroup.of({
@@ -100,6 +104,13 @@ export const layer = LinxWsRpcGroup.toLayer(
         mapped(skills.get(packageId, revision)),
       [WS_METHODS.linxSkillsArchive]: ({ packageId, expectedRevision }) =>
         mapped(skills.archive(packageId, expectedRevision)),
+      [WS_METHODS.linxConnectionsList]: () => mapped(connections.list()),
+      [WS_METHODS.linxConnectionsGet]: ({ connectionId }) => mapped(connections.get(connectionId)),
+      [WS_METHODS.linxConnectionsTest]: ({ endpoint }) =>
+        mapped(connections.test(endpoint)).pipe(Effect.map((result) => ({ tools: result.tools }))),
+      [WS_METHODS.linxConnectionsSave]: (input) => mapped(connections.save(input)),
+      [WS_METHODS.linxConnectionsDisable]: ({ connectionId, expectedRevision }) =>
+        mapped(connections.disable(connectionId, expectedRevision)),
       [WS_METHODS.linxThreadsLaunch]: launches.launch,
       [WS_METHODS.linxThreadsGetBinding]: Effect.fn("LinxRpc.getBinding")(function* ({ threadId }) {
         const binding = yield* bindings

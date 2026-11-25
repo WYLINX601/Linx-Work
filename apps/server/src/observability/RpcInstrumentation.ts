@@ -279,6 +279,11 @@ const RPC_AGGREGATES = {
   [WS_METHODS.linxSkillsList]: "linx",
   [WS_METHODS.linxSkillsGet]: "linx",
   [WS_METHODS.linxSkillsArchive]: "linx",
+  [WS_METHODS.linxConnectionsList]: "linx",
+  [WS_METHODS.linxConnectionsGet]: "linx",
+  [WS_METHODS.linxConnectionsTest]: "linx",
+  [WS_METHODS.linxConnectionsSave]: "linx",
+  [WS_METHODS.linxConnectionsDisable]: "linx",
   [WS_METHODS.linxThreadsLaunch]: "linx",
   [WS_METHODS.linxThreadsGetBinding]: "linx",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;

@@ -55,8 +55,14 @@ import {
   LinxExpertSnapshot,
   LinxExpertSummary,
   LinxFailure,
+  LinxDisableMcpConnectionInput,
   LinxImportSkillInput,
   LinxLaunchThreadInput,
+  LinxMcpConnectionDetail,
+  LinxMcpConnectionSummary,
+  LinxSaveMcpConnectionInput,
+  LinxTestMcpConnectionInput,
+  LinxTestMcpConnectionResult,
   LinxLaunchThreadResult,
   LinxSaveExpertInput,
   LinxSkillPackageDetail,
@@ -764,6 +770,11 @@ export const WS_METHODS = {
   linxSkillsList: "linx.skills.list",
   linxSkillsGet: "linx.skills.get",
   linxSkillsArchive: "linx.skills.archive",
+  linxConnectionsList: "linx.connections.list",
+  linxConnectionsGet: "linx.connections.get",
+  linxConnectionsTest: "linx.connections.test",
+  linxConnectionsSave: "linx.connections.save",
+  linxConnectionsDisable: "linx.connections.disable",
   linxThreadsLaunch: "linx.threads.launch",
   linxThreadsGetBinding: "linx.threads.getBinding",
 } as const;
@@ -2539,6 +2550,31 @@ export const LinxWsRpcGroup = RpcGroup.make(
   Rpc.make(WS_METHODS.linxSkillsArchive, {
     payload: LinxArchiveSkillInput,
     success: LinxSkillPackageSummary,
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxConnectionsList, {
+    payload: {},
+    success: Schema.Array(LinxMcpConnectionSummary),
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxConnectionsGet, {
+    payload: { connectionId: TrimmedNonEmptyString },
+    success: Schema.NullOr(LinxMcpConnectionDetail),
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxConnectionsTest, {
+    payload: LinxTestMcpConnectionInput,
+    success: LinxTestMcpConnectionResult,
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxConnectionsSave, {
+    payload: LinxSaveMcpConnectionInput,
+    success: LinxMcpConnectionDetail,
+    error: LinxFailure,
+  }),
+  Rpc.make(WS_METHODS.linxConnectionsDisable, {
+    payload: LinxDisableMcpConnectionInput,
+    success: LinxMcpConnectionSummary,
     error: LinxFailure,
   }),
   Rpc.make(WS_METHODS.linxThreadsLaunch, {

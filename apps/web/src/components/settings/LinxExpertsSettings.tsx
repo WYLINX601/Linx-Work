@@ -1,4 +1,8 @@
-import { AuthProvidersManageScope, type EnvironmentId } from "@t3tools/contracts";
+import {
+  AuthProvidersManageScope,
+  type EnvironmentId,
+  type LinxMcpConnectionSummary,
+} from "@t3tools/contracts";
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import type { AtomCommandResult } from "@t3tools/client-runtime/state/runtime";
 import { useGT, useMessages, T, Var } from "gt-react";
@@ -8,11 +12,16 @@ import { m } from "../../i18n/messages";
 import {
   archiveExpert,
   archiveSkill,
+  disableConnection,
   importSkill,
   linxExpertDefinition,
   linxExpertDefinitions,
+  linxMcpConnection,
+  linxMcpConnections,
   linxSkillPackages,
+  saveConnection,
   saveExpert,
+  testConnection,
 } from "../../state/linx";
 import { useEnvironmentQuery } from "../../state/query";
 import { useEnvironmentScope } from "../../state/session";
@@ -30,13 +39,25 @@ interface SkillChoice {
   readonly contentHash: string;
 }
 
+interface GrantChoice {
+  readonly connectionId: string;
+  readonly revision: number;
+  readonly tools: ReadonlyArray<string>;
+}
+
 interface EditorForm {
   readonly title: string;
   readonly persona: string;
   readonly skills: ReadonlyArray<SkillChoice>;
+  readonly grants: ReadonlyArray<GrantChoice>;
 }
 
-const EMPTY_FORM: EditorForm = { title: "", persona: "", skills: [] };
+const EMPTY_FORM: EditorForm = {
+  title: "",
+  persona: "",
+  skills: [],
+  grants: [],
+};
 
 export function LinxExpertsSettings({ environmentId }: { environmentId: EnvironmentId }) {
   const gt = useGT();
@@ -44,12 +65,21 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
   const canManage = useEnvironmentScope(environmentId, AuthProvidersManageScope);
   const definitions = useEnvironmentQuery(linxExpertDefinitions({ environmentId, input: {} }));
   const skills = useEnvironmentQuery(linxSkillPackages({ environmentId, input: {} }));
+  const connections = useEnvironmentQuery(linxMcpConnections({ environmentId, input: {} }));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [edit, setEdit] = useState<{ readonly key: string; readonly form: EditorForm } | null>(
     null,
   );
   const [skillPath, setSkillPath] = useState("");
+  const [connectionForm, setConnectionForm] = useState<{
+    readonly connectionId?: string;
+    readonly expectedRevision?: number;
+    readonly name: string;
+    readonly endpoint: string;
+  }>({ name: "", endpoint: "" });
+  const [connectionTools, setConnectionTools] = useState<ReadonlyArray<string>>([]);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const detail = useEnvironmentQuery(
@@ -61,6 +91,9 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
   const runArchive = useAtomCommand(archiveExpert, { reportFailure: false });
   const runImport = useAtomCommand(importSkill, { reportFailure: false });
   const runArchiveSkill = useAtomCommand(archiveSkill, { reportFailure: false });
+  const runSaveConnection = useAtomCommand(saveConnection, { reportFailure: false });
+  const runTestConnection = useAtomCommand(testConnection, { reportFailure: false });
+  const runDisableConnection = useAtomCommand(disableConnection, { reportFailure: false });
   const errorText = (result: AtomCommandResult<unknown, unknown> | null): string | null => {
     if (result?._tag !== "Failure") return null;
     return thrownErrorMessage(result.cause, mf) ?? mf(m("The request failed."));
@@ -68,6 +101,7 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
 
   const experts = definitions.data ?? [];
   const packages = skills.data ?? [];
+  const mcpConnections = connections.data ?? [];
   const loaded = creating ? null : detail.data;
   const archived = loaded?.archived ?? false;
   const selectionKey = creating
@@ -80,7 +114,12 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
       ? edit.form
       : creating || loaded === null || loaded === undefined
         ? EMPTY_FORM
-        : { title: loaded.title, persona: loaded.persona, skills: loaded.skillSelection };
+        : {
+            title: loaded.title,
+            persona: loaded.persona,
+            skills: loaded.skillSelection,
+            grants: loaded.mcpGrants,
+          };
   const updateForm = (update: (current: EditorForm) => EditorForm) => {
     setEdit({ key: selectionKey, form: update(form) });
   };
@@ -129,6 +168,10 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
       setError(mf(m("Give the expert a title.")));
       return;
     }
+    if (form.grants.some((grant) => grant.tools.length === 0)) {
+      setError(mf(m("Select at least one MCP tool for every granted connection.")));
+      return;
+    }
     setPending("save");
     setError(null);
     try {
@@ -137,7 +180,7 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
         persona: form.persona,
         references: loaded?.references ?? [],
         skillSelection: form.skills,
-        mcpGrants: loaded?.mcpGrants ?? [],
+        mcpGrants: form.grants,
       };
       const result = await runSave({
         environmentId,
@@ -227,6 +270,102 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
       }
       skills.refresh();
       definitions.refresh();
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const testConnectionEndpoint = async () => {
+    if (!canManage || pending !== null) return;
+    const endpoint = connectionForm.endpoint.trim();
+    if (endpoint.length === 0) {
+      setConnectionError(mf(m("Enter an MCP endpoint.")));
+      return;
+    }
+    setPending("connection-test");
+    setConnectionError(null);
+    try {
+      const result = await runTestConnection({ environmentId, input: { endpoint } });
+      const failure = errorText(result);
+      if (failure !== null) {
+        setConnectionError(failure);
+        return;
+      }
+      setConnectionTools(
+        result._tag === "Success" ? result.value.tools.map((tool) => tool.name) : [],
+      );
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const saveConnectionDetails = async () => {
+    if (!canManage || pending !== null) return;
+    const name = connectionForm.name.trim();
+    const endpoint = connectionForm.endpoint.trim();
+    if (name.length === 0 || endpoint.length === 0) {
+      setConnectionError(mf(m("Enter a connection name and endpoint.")));
+      return;
+    }
+    setPending("connection-save");
+    setConnectionError(null);
+    try {
+      const result = await runSaveConnection({
+        environmentId,
+        input: {
+          ...(connectionForm.connectionId === undefined
+            ? {}
+            : {
+                connectionId: connectionForm.connectionId,
+                expectedRevision: connectionForm.expectedRevision,
+              }),
+          name,
+          endpoint,
+        },
+      });
+      const failure = errorText(result);
+      if (failure !== null) {
+        setConnectionError(failure);
+        return;
+      }
+      setConnectionForm({ name: "", endpoint: "" });
+      setConnectionTools([]);
+      connections.refresh();
+      definitions.refresh();
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const editConnection = (connection: LinxMcpConnectionSummary) => {
+    setConnectionError(null);
+    setConnectionTools([]);
+    setConnectionForm({
+      connectionId: connection.connectionId,
+      expectedRevision: connection.currentRevision,
+      name: connection.name,
+      endpoint: connection.endpoint,
+    });
+  };
+
+  const disableSavedConnection = async (connection: LinxMcpConnectionSummary) => {
+    if (!canManage || pending !== null) return;
+    setPending(`connection-disable:${connection.connectionId}`);
+    setConnectionError(null);
+    try {
+      const result = await runDisableConnection({
+        environmentId,
+        input: {
+          connectionId: connection.connectionId,
+          expectedRevision: connection.currentRevision,
+        },
+      });
+      const failure = errorText(result);
+      if (failure !== null) {
+        setConnectionError(failure);
+        return;
+      }
+      connections.refresh();
     } finally {
       setPending(null);
     }
@@ -373,14 +512,44 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
               </ul>
             )}
           </div>
-          {loaded !== null && loaded !== undefined ? (
-            <p className="text-xs text-muted-foreground">
-              <T>
-                Preserved from this revision: <Var>{loaded.references.length}</Var> references,{" "}
-                <Var>{loaded.mcpGrants.length}</Var> MCP grants.
-              </T>
-            </p>
-          ) : null}
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-muted-foreground">{gt("MCP tools")}</span>
+            {mcpConnections.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {gt("No MCP connections yet. Add one below, then grant its tools here.")}
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {mcpConnections.map((connection) => (
+                  <McpGrantPicker
+                    key={connection.connectionId}
+                    environmentId={environmentId}
+                    connection={connection}
+                    grant={form.grants.find(
+                      (grant) => grant.connectionId === connection.connectionId,
+                    )}
+                    disabled={!canManage || archived || pending !== null}
+                    onChange={(next) =>
+                      updateForm((current) => ({
+                        ...current,
+                        grants:
+                          next === null
+                            ? current.grants.filter(
+                                (grant) => grant.connectionId !== connection.connectionId,
+                              )
+                            : [
+                                ...current.grants.filter(
+                                  (grant) => grant.connectionId !== connection.connectionId,
+                                ),
+                                next,
+                              ],
+                      }))
+                    }
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
           {error !== null ? (
             <p role="alert" className="text-sm text-destructive">
               {error}
@@ -406,6 +575,123 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
             ) : null}
             {pending !== null ? <Spinner /> : null}
           </div>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title={gt("MCP connections")}>
+        <p className="px-4 pt-3 text-sm text-muted-foreground">
+          {gt(
+            "Only loopback or public HTTPS Streamable HTTP endpoints are accepted. Credentials are not stored in this version.",
+          )}
+        </p>
+        <div className="space-y-3 px-4 py-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              className="min-w-0 flex-1"
+              placeholder={gt("Connection name")}
+              value={connectionForm.name}
+              disabled={!canManage || pending !== null}
+              onChange={(event) =>
+                setConnectionForm((current) => ({ ...current, name: event.target.value }))
+              }
+            />
+            <Input
+              className="min-w-0 flex-[2]"
+              placeholder={gt("http://127.0.0.1:3000/mcp")}
+              value={connectionForm.endpoint}
+              disabled={!canManage || pending !== null}
+              onChange={(event) =>
+                setConnectionForm((current) => ({ ...current, endpoint: event.target.value }))
+              }
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!canManage || pending !== null}
+              onClick={() => void testConnectionEndpoint()}
+            >
+              {gt("Test")}
+            </Button>
+            <Button
+              size="sm"
+              disabled={!canManage || pending !== null}
+              onClick={() => void saveConnectionDetails()}
+            >
+              {connectionForm.connectionId === undefined
+                ? gt("Add connection")
+                : gt("Save connection")}
+            </Button>
+            {connectionForm.connectionId !== undefined ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={!canManage || pending !== null}
+                onClick={() => {
+                  setConnectionForm({ name: "", endpoint: "" });
+                  setConnectionTools([]);
+                  setConnectionError(null);
+                }}
+              >
+                {gt("Cancel edit")}
+              </Button>
+            ) : null}
+            {pending?.startsWith("connection") ? <Spinner /> : null}
+          </div>
+          {connectionTools.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              <T>
+                Approved tools: <Var>{connectionTools.join(", ")}</Var>
+              </T>
+            </p>
+          ) : null}
+          {connectionError !== null ? (
+            <p role="alert" className="text-sm text-destructive">
+              {connectionError}
+            </p>
+          ) : null}
+          <ul className="divide-y divide-border/60">
+            {mcpConnections.length === 0 ? (
+              <li className="py-2 text-sm text-muted-foreground">
+                {gt("No MCP connections configured.")}
+              </li>
+            ) : null}
+            {mcpConnections.map((connection) => (
+              <li key={connection.connectionId} className="flex items-center gap-2 py-2 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">
+                    {connection.name}
+                    {connection.disabled ? (
+                      <span className="ml-2 text-xs text-muted-foreground">{gt("Disabled")}</span>
+                    ) : null}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    <T>
+                      v<Var>{connection.currentRevision}</Var> · <Var>{connection.toolCount}</Var>{" "}
+                      tools · <Var>{connection.endpoint}</Var>
+                    </T>
+                  </span>
+                </span>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={!canManage || pending !== null}
+                  onClick={() => editConnection(connection)}
+                >
+                  {gt("Edit")}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={!canManage || pending !== null || connection.disabled}
+                  onClick={() => void disableSavedConnection(connection)}
+                >
+                  {gt("Disable")}
+                </Button>
+              </li>
+            ))}
+          </ul>
         </div>
       </SettingsSection>
 
@@ -452,5 +738,101 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
         </div>
       </SettingsSection>
     </SettingsPageContainer>
+  );
+}
+
+function McpGrantPicker({
+  environmentId,
+  connection,
+  grant,
+  disabled,
+  onChange,
+}: {
+  readonly environmentId: EnvironmentId;
+  readonly connection: LinxMcpConnectionSummary;
+  readonly grant: GrantChoice | undefined;
+  readonly disabled: boolean;
+  readonly onChange: (next: GrantChoice | null) => void;
+}) {
+  const gt = useGT();
+  const detail = useEnvironmentQuery(
+    grant === undefined
+      ? null
+      : linxMcpConnection({
+          environmentId,
+          input: { connectionId: connection.connectionId },
+        }),
+  );
+  const tools = detail.data?.tools ?? [];
+  const unavailable = disabled || connection.disabled;
+  return (
+    <li className="space-y-1.5 text-sm">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          checked={grant !== undefined}
+          disabled={unavailable}
+          onCheckedChange={(checked) =>
+            onChange(
+              checked === true
+                ? {
+                    connectionId: connection.connectionId,
+                    revision: connection.currentRevision,
+                    tools: [],
+                  }
+                : null,
+            )
+          }
+        />
+        <span className="min-w-0 flex-1 truncate">
+          {connection.name}
+          <span className="ml-2 text-xs text-muted-foreground">
+            <T>
+              v<Var>{connection.currentRevision}</Var> · <Var>{connection.toolCount}</Var> tools
+            </T>
+          </span>
+        </span>
+        {connection.disabled ? (
+          <span className="text-xs text-muted-foreground">{gt("Disabled")}</span>
+        ) : null}
+        {grant !== undefined && grant.revision !== connection.currentRevision ? (
+          <span className="text-xs text-muted-foreground">
+            <T>
+              frozen at v<Var>{grant.revision}</Var>
+            </T>
+          </span>
+        ) : null}
+      </div>
+      {grant === undefined ? null : detail.isPending ? (
+        <p className="pl-6 text-xs text-muted-foreground">{gt("Loading tools…")}</p>
+      ) : detail.error ? (
+        <p className="pl-6 text-xs text-destructive">{gt("Tools could not be loaded.")}</p>
+      ) : (
+        <ul className="space-y-1 pl-6">
+          {tools.map((tool) => (
+            <li key={tool.name} className="flex items-center gap-2">
+              <Checkbox
+                checked={grant.tools.includes(tool.name)}
+                disabled={unavailable}
+                onCheckedChange={(checked) =>
+                  onChange({
+                    ...grant,
+                    tools:
+                      checked === true
+                        ? [...grant.tools, tool.name].sort()
+                        : grant.tools.filter((name) => name !== tool.name),
+                  })
+                }
+              />
+              <span className="min-w-0 truncate">{tool.name}</span>
+              {tool.description.length > 0 ? (
+                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                  {tool.description}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }

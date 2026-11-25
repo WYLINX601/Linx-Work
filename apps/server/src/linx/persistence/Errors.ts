@@ -107,6 +107,18 @@ export class LinxLimitExceededError extends Schema.TaggedError<LinxLimitExceeded
   }
 }
 
+export class LinxMcpTransportError extends Schema.TaggedError<LinxMcpTransportError>()(
+  "LinxMcpTransportError",
+  {
+    endpoint: Schema.String,
+    category: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `The external MCP endpoint could not be used (${this.category}).`;
+  }
+}
+
 export class LinxResourcePathError extends Schema.TaggedError<LinxResourcePathError>()(
   "LinxResourcePathError",
   {

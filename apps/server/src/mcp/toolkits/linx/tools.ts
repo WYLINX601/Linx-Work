@@ -3,6 +3,8 @@ import * as Schema from "effect/Schema";
 import { McpSchema, Tool, Toolkit } from "effect/ai";
 
 import * as ExpertSnapshotService from "../../../linx/expert/ExpertSnapshotService.ts";
+import * as ExternalMcpClient from "../../../linx/mcp/ExternalMcpClient.ts";
+import * as McpConnectionService from "../../../linx/mcp/McpConnectionService.ts";
 import * as SkillPackageService from "../../../linx/skill/SkillPackageService.ts";
 import * as ThreadBindingRepository from "../../../linx/thread/ThreadBindingRepository.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
@@ -112,5 +114,66 @@ export const LinxSkillToolkit = Toolkit.make(
   })
     .annotate(Tool.Readonly, true)
     .annotate(Tool.Idempotent, true)
+    .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients),
+);
+
+export const LinxMcpToolkit = Toolkit.make(
+  Tool.make("linx_mcp_list_tools", {
+    description:
+      "List the external MCP tools granted to the calling thread's expert snapshot. Takes no arguments.",
+    parameters: Schema.Struct({}),
+    success: Schema.Struct({
+      connections: Schema.Array(
+        Schema.Struct({
+          connectionId: Schema.String,
+          name: Schema.String,
+          tools: Schema.Array(
+            Schema.Struct({
+              name: Schema.String,
+              description: Schema.String,
+            }),
+          ),
+        }),
+      ),
+    }),
+    failure: OrchestratorMcpFailure,
+    failureMode: "return",
+    dependencies: [
+      McpInvocationContext.McpInvocationContext,
+      ExpertSnapshotService.ExpertSnapshotService,
+      ThreadBindingRepository.ThreadBindingRepository,
+      McpConnectionService.McpConnectionService,
+    ],
+  })
+    .annotate(Tool.Readonly, true)
+    .annotate(Tool.Idempotent, true)
+    .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients),
+  Tool.make("linx_mcp_call", {
+    description:
+      "Call an external MCP tool granted to the calling thread's expert snapshot. Arguments must match the approved tool schema.",
+    parameters: Schema.Struct({
+      connectionId: Schema.String,
+      tool: Schema.String,
+      arguments: Schema.Record(Schema.String, Schema.Unknown),
+    }),
+    success: Schema.Struct({
+      connectionId: Schema.String,
+      tool: Schema.String,
+      text: Schema.String,
+      structuredContent: Schema.Unknown,
+      isError: Schema.Boolean,
+    }),
+    failure: OrchestratorMcpFailure,
+    failureMode: "return",
+    dependencies: [
+      McpInvocationContext.McpInvocationContext,
+      ExpertSnapshotService.ExpertSnapshotService,
+      ThreadBindingRepository.ThreadBindingRepository,
+      McpConnectionService.McpConnectionService,
+      ExternalMcpClient.ExternalMcpClient,
+    ],
+  })
+    .annotate(Tool.Readonly, false)
+    .annotate(Tool.Idempotent, false)
     .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients),
 );

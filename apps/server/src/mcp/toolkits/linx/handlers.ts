@@ -1,13 +1,16 @@
 import { OrchestratorMcpFailure } from "@t3tools/contracts";
+import { Ajv } from "ajv";
 import * as Effect from "effect/Effect";
 
 import * as ExpertSnapshotService from "../../../linx/expert/ExpertSnapshotService.ts";
+import * as ExternalMcpClient from "../../../linx/mcp/ExternalMcpClient.ts";
+import * as McpConnectionService from "../../../linx/mcp/McpConnectionService.ts";
 import type { LinxExpertSnapshot } from "../../../linx/expert/ExpertSnapshotService.ts";
 import * as SkillPackageService from "../../../linx/skill/SkillPackageService.ts";
 import * as ThreadBindingRepository from "../../../linx/thread/ThreadBindingRepository.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
-import { LinxExpertContextToolkit, LinxSkillToolkit } from "./tools.ts";
+import { LinxExpertContextToolkit, LinxMcpToolkit, LinxSkillToolkit } from "./tools.ts";
 
 const invalid = (message: string) =>
   new OrchestratorMcpFailure({ code: "invalid_request", message });
@@ -179,4 +182,109 @@ export const layer = McpToolAccess.toLayer(LinxExpertContextToolkit, {
 export const skillLayer = McpToolAccess.toLayer(LinxSkillToolkit, {
   linx_skill_search: McpToolAccess.readsAsCaller((input) => searchSkills(input)),
   linx_skill_read: McpToolAccess.readsAsCaller((input) => readSkill(input)),
+});
+
+const schemaValidators = new Map<string, (data: unknown) => boolean>();
+const ajv = new Ajv({ allErrors: false, strict: false, allowUnionTypes: true });
+
+const validatorFor = (schemaHash: string, schema: unknown) => {
+  const cached = schemaValidators.get(schemaHash);
+  if (cached !== undefined) return cached;
+  const compiled = ajv.compile(schema as object);
+  const validate = (data: unknown) => compiled(data) === true;
+  schemaValidators.set(schemaHash, validate);
+  return validate;
+};
+
+const listMcpTools = Effect.gen(function* () {
+  const snapshot = yield* resolveContext;
+  const connections = yield* McpConnectionService.McpConnectionService;
+  const result: Array<{
+    connectionId: string;
+    name: string;
+    tools: Array<{ name: string; description: string }>;
+  }> = [];
+  for (const grant of snapshot.mcpGrants) {
+    const resolved = yield* connections
+      .resolveRevision(grant.connectionId, grant.revision)
+      .pipe(Effect.mapError(() => invalid("The granted MCP connection could not be read.")));
+    if (resolved === null) {
+      return yield* invalid("A granted MCP connection no longer exists at its frozen revision.");
+    }
+    if (resolved.disabled) {
+      return yield* invalid("A granted MCP connection has been disabled.");
+    }
+    const allowed = resolved.tools.filter((tool) => grant.tools.includes(tool.name));
+    if (allowed.length !== grant.tools.length) {
+      return yield* invalid("A granted MCP tool no longer exists in the frozen connection.");
+    }
+    result.push({
+      connectionId: resolved.connectionId,
+      name: resolved.name,
+      tools: allowed.map((tool) => ({ name: tool.name, description: tool.description })),
+    });
+  }
+  return { connections: result };
+});
+
+const callMcpTool = Effect.fn("linx.mcpCall")(function* (input: {
+  readonly connectionId: string;
+  readonly tool: string;
+  readonly arguments: Record<string, unknown>;
+}) {
+  const snapshot = yield* resolveContext;
+  const grant = snapshot.mcpGrants.find((entry) => entry.connectionId === input.connectionId);
+  if (grant === undefined) {
+    return yield* invalid("This MCP connection is not granted to the thread's expert snapshot.");
+  }
+  if (!grant.tools.includes(input.tool)) {
+    return yield* invalid("This MCP tool is not granted to the thread's expert snapshot.");
+  }
+  const connections = yield* McpConnectionService.McpConnectionService;
+  const resolved = yield* connections
+    .resolveRevision(grant.connectionId, grant.revision)
+    .pipe(Effect.mapError(() => invalid("The granted MCP connection could not be read.")));
+  if (resolved === null) {
+    return yield* invalid("The granted MCP connection no longer exists at its frozen revision.");
+  }
+  if (resolved.disabled) {
+    return yield* invalid("The granted MCP connection has been disabled.");
+  }
+  const tool = resolved.tools.find((entry) => entry.name === input.tool);
+  if (tool === undefined) {
+    return yield* invalid("The MCP tool no longer exists in the frozen connection.");
+  }
+  const validate = yield* Effect.try({
+    try: () => validatorFor(tool.schemaHash, tool.inputSchema),
+    catch: () => invalid("The MCP tool schema is not usable."),
+  });
+  if (!validate(input.arguments)) {
+    return yield* invalid("The MCP tool arguments do not match the approved schema.");
+  }
+  const client = yield* ExternalMcpClient.ExternalMcpClient;
+  const result = yield* client
+    .callTool({
+      endpoint: resolved.endpoint,
+      tool: tool.name,
+      arguments: input.arguments,
+    })
+    .pipe(
+      Effect.mapError((error) =>
+        error.category === "unauthorized"
+          ? invalid("The MCP endpoint rejected the request.")
+          : invalid("The MCP endpoint could not be reached."),
+      ),
+    );
+  return {
+    connectionId: resolved.connectionId,
+    tool: tool.name,
+    text: result.text,
+    structuredContent: result.structuredContent,
+    isError: result.isError,
+  };
+});
+
+export const mcpLayer = McpToolAccess.toLayer(LinxMcpToolkit, {
+  linx_mcp_list_tools: McpToolAccess.readsAsCaller(() => listMcpTools),
+  linx_mcp_call: McpToolAccess.readsAsCaller((input) => callMcpTool(input)),
 });

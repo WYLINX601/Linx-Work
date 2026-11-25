@@ -15,6 +15,9 @@ import {
   type LinxImportSkillInput,
   type LinxLaunchThreadInput,
   type LinxSaveExpertInput,
+  type LinxSaveMcpConnectionInput,
+  type LinxDisableMcpConnectionInput,
+  type LinxTestMcpConnectionInput,
   MessageId,
   type ModelSelection,
   type NodeId,
@@ -810,6 +813,24 @@ export const archiveLinxSkill = Effect.fn("EnvironmentCommands.archiveLinxSkill"
 ) {
   return yield* request(WS_METHODS.linxSkillsArchive, input);
 });
+
+export const saveLinxConnection = Effect.fn("EnvironmentCommands.saveLinxConnection")(function* (
+  input: LinxSaveMcpConnectionInput,
+) {
+  return yield* request(WS_METHODS.linxConnectionsSave, input);
+});
+
+export const testLinxConnection = Effect.fn("EnvironmentCommands.testLinxConnection")(function* (
+  input: LinxTestMcpConnectionInput,
+) {
+  return yield* request(WS_METHODS.linxConnectionsTest, input);
+});
+
+export const disableLinxConnection = Effect.fn("EnvironmentCommands.disableLinxConnection")(
+  function* (input: LinxDisableMcpConnectionInput) {
+    return yield* request(WS_METHODS.linxConnectionsDisable, input);
+  },
+);
 
 // Servers without native resume dispatch command.text verbatim; newer ones clear
 // it when manualContinuationOfRunId is set.

@@ -133,6 +133,54 @@ export const LinxSkillPackageDetail = Schema.Struct({
 });
 export type LinxSkillPackageDetail = typeof LinxSkillPackageDetail.Type;
 
+export const LinxMcpTool = Schema.Struct({
+  name: TrimmedNonEmptyString,
+  description: Schema.String,
+  schemaHash: Sha256Hex,
+});
+export type LinxMcpTool = typeof LinxMcpTool.Type;
+
+export const LinxMcpConnectionSummary = Schema.Struct({
+  connectionId: TrimmedNonEmptyString,
+  name: TrimmedNonEmptyString,
+  endpoint: TrimmedNonEmptyString,
+  currentRevision: NonNegativeInt,
+  disabled: Schema.Boolean,
+  updatedAt: TrimmedNonEmptyString,
+  toolCount: NonNegativeInt,
+});
+export type LinxMcpConnectionSummary = typeof LinxMcpConnectionSummary.Type;
+
+export const LinxMcpConnectionDetail = Schema.Struct({
+  ...LinxMcpConnectionSummary.fields,
+  tools: Schema.Array(LinxMcpTool),
+});
+export type LinxMcpConnectionDetail = typeof LinxMcpConnectionDetail.Type;
+
+export const LinxTestMcpConnectionInput = Schema.Struct({
+  endpoint: TrimmedNonEmptyString,
+});
+export type LinxTestMcpConnectionInput = typeof LinxTestMcpConnectionInput.Type;
+
+export const LinxTestMcpConnectionResult = Schema.Struct({
+  tools: Schema.Array(LinxMcpTool),
+});
+export type LinxTestMcpConnectionResult = typeof LinxTestMcpConnectionResult.Type;
+
+export const LinxSaveMcpConnectionInput = Schema.Struct({
+  connectionId: Schema.optionalKey(TrimmedNonEmptyString),
+  expectedRevision: Schema.optionalKey(NonNegativeInt),
+  name: TrimmedNonEmptyString,
+  endpoint: TrimmedNonEmptyString,
+});
+export type LinxSaveMcpConnectionInput = typeof LinxSaveMcpConnectionInput.Type;
+
+export const LinxDisableMcpConnectionInput = Schema.Struct({
+  connectionId: TrimmedNonEmptyString,
+  expectedRevision: NonNegativeInt,
+});
+export type LinxDisableMcpConnectionInput = typeof LinxDisableMcpConnectionInput.Type;
+
 export const LinxImportSkillInput = Schema.Struct({
   path: TrimmedNonEmptyString,
 });

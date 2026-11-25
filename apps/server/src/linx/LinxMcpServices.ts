@@ -10,6 +10,8 @@ import {
   ExpertSnapshotService,
   layer as expertSnapshotLayer,
 } from "./expert/ExpertSnapshotService.ts";
+import { ExternalMcpClient, layer as externalMcpLayer } from "./mcp/ExternalMcpClient.ts";
+import { McpConnectionService, layer as mcpConnectionLayer } from "./mcp/McpConnectionService.ts";
 import { LinxResourceStore, layer as resourcesLayer } from "./persistence/LinxResourceStore.ts";
 import { LinxSqlClient, layer as linxSqliteLayer } from "./persistence/LinxSqlite.ts";
 import { runLinxMigrations } from "./persistence/Migrations.ts";
@@ -24,6 +26,8 @@ export const layer: Layer.Layer<
   | ExpertSnapshotService
   | ThreadBindingRepository
   | SkillPackageService
+  | McpConnectionService
+  | ExternalMcpClient
   | LinxResourceStore
   | LinxSqlClient,
   Migrator.MigrationError | SqlError.SqlError,
@@ -34,8 +38,12 @@ export const layer: Layer.Layer<
     const migrated = Layer.effectDiscard(runLinxMigrations).pipe(Layer.provideMerge(sqlite));
     const resources = resourcesLayer(config.linxResourceDir);
     const skills = skillPackageLayer.pipe(Layer.provide(resources));
-    return Layer.mergeAll(expertSnapshotLayer, threadBindingLayer, skills, resources).pipe(
-      Layer.provideMerge(migrated),
-    );
+    return Layer.mergeAll(
+      expertSnapshotLayer,
+      threadBindingLayer,
+      skills,
+      mcpConnectionLayer.pipe(Layer.provideMerge(externalMcpLayer)),
+      resources,
+    ).pipe(Layer.provideMerge(migrated));
   }),
 );

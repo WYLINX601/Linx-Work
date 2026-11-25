@@ -1,9 +1,12 @@
 import {
   archiveLinxExpert,
   archiveLinxSkill,
+  disableLinxConnection,
   importLinxSkill,
   launchLinxThread,
+  saveLinxConnection,
   saveLinxExpert,
+  testLinxConnection,
 } from "@t3tools/client-runtime/operations";
 import {
   createEnvironmentCommand,
@@ -43,6 +46,18 @@ export const linxSkillPackages = createEnvironmentRpcQueryAtomFamily(connectionA
   staleTimeMs: 0,
 });
 
+export const linxMcpConnections = createEnvironmentRpcQueryAtomFamily(connectionAtomRuntime, {
+  label: "web:linx:mcp-connections",
+  tag: WS_METHODS.linxConnectionsList,
+  staleTimeMs: 0,
+});
+
+export const linxMcpConnection = createEnvironmentRpcQueryAtomFamily(connectionAtomRuntime, {
+  label: "web:linx:mcp-connection",
+  tag: WS_METHODS.linxConnectionsGet,
+  staleTimeMs: 0,
+});
+
 export const launchExpertThread = createEnvironmentCommand(connectionAtomRuntime, {
   label: "web:linx:launch",
   execute: launchLinxThread,
@@ -66,4 +81,19 @@ export const importSkill = createEnvironmentCommand(connectionAtomRuntime, {
 export const archiveSkill = createEnvironmentCommand(connectionAtomRuntime, {
   label: "web:linx:archive-skill",
   execute: archiveLinxSkill,
+});
+
+export const saveConnection = createEnvironmentCommand(connectionAtomRuntime, {
+  label: "web:linx:save-connection",
+  execute: saveLinxConnection,
+});
+
+export const testConnection = createEnvironmentCommand(connectionAtomRuntime, {
+  label: "web:linx:test-connection",
+  execute: testLinxConnection,
+});
+
+export const disableConnection = createEnvironmentCommand(connectionAtomRuntime, {
+  label: "web:linx:disable-connection",
+  execute: disableLinxConnection,
 });

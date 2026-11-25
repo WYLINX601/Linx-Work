@@ -1,4 +1,12 @@
-import { EnvironmentId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+// @effect-diagnostics nodeBuiltinImport:off - the test runs a real local MCP endpoint.
+import * as NodeHttp from "node:http";
+
+import {
+  EnvironmentId,
+  OrchestratorMcpFailure,
+  ProviderInstanceId,
+  ThreadId,
+} from "@t3tools/contracts";
 import { NodeHttpServer } from "@effect/platform-node";
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -8,6 +16,7 @@ import { HttpBody, HttpClient, HttpRouter } from "effect/http";
 import * as ServerConfig from "../../../config.ts";
 import { ExpertSnapshotService } from "../../../linx/expert/ExpertSnapshotService.ts";
 import * as LinxStorage from "../../../linx/LinxMcpServices.ts";
+import { McpConnectionService } from "../../../linx/mcp/McpConnectionService.ts";
 import { layer as linxSqliteLayer, LinxSqlClient } from "../../../linx/persistence/LinxSqlite.ts";
 import { ThreadBindingRepository } from "../../../linx/thread/ThreadBindingRepository.ts";
 import * as ServerSettings from "../../../serverSettings.ts";
@@ -167,4 +176,244 @@ it.effect(
         ),
       ),
     ),
+);
+
+it.effect("lists and calls only the MCP tools granted to the authenticated thread", () =>
+  Effect.gen(function* () {
+    const environmentId = EnvironmentId.make("linx-mcp-test");
+    const scope = (id: string): McpThreadInvocationScope => ({
+      environmentId,
+      requestNamespace: id,
+      thread: {
+        threadId: ThreadId.make(id),
+        providerInstanceId: ProviderInstanceId.make("claude"),
+        providerSessionId: id,
+        subagent: false,
+      },
+      client: undefined,
+      capabilities: new Set(["orchestration"]),
+      issuedAt: 0,
+    });
+    const tools = [
+      {
+        name: "echo",
+        description: "Echo the text back.",
+        inputSchema: {
+          type: "object",
+          properties: { text: { type: "string" } },
+          required: ["text"],
+          additionalProperties: false,
+        },
+      },
+    ];
+    const started = yield* Effect.acquireRelease(
+      Effect.tryPromise({
+        try: () => {
+          const ready = Promise.withResolvers<{ endpoint: string }>();
+          const server = NodeHttp.createServer((request, response) => {
+            const chunks: Buffer[] = [];
+            request.on("data", (chunk: Buffer) => chunks.push(chunk));
+            request.on("end", () => {
+              const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+                id?: number;
+                method?: string;
+                params?: { arguments?: { text?: unknown } };
+              };
+              const reply = (payload: unknown) => {
+                response.writeHead(200, {
+                  "content-type": "application/json",
+                  "mcp-session-id": "session-1",
+                });
+                response.end(JSON.stringify(payload));
+              };
+              if (body.method === "initialize") {
+                reply({
+                  jsonrpc: "2.0",
+                  id: body.id,
+                  result: {
+                    protocolVersion: "2025-06-18",
+                    capabilities: { tools: {} },
+                    serverInfo: { name: "test-mcp", version: "1" },
+                  },
+                });
+                return;
+              }
+              if (body.method === "notifications/initialized") {
+                response.writeHead(202).end();
+                return;
+              }
+              if (body.method === "tools/list") {
+                reply({ jsonrpc: "2.0", id: body.id, result: { tools } });
+                return;
+              }
+              if (body.method === "tools/call") {
+                const text = body.params?.arguments?.text;
+                reply({
+                  jsonrpc: "2.0",
+                  id: body.id,
+                  result: {
+                    content: [{ type: "text", text: String(text ?? "") }],
+                    structuredContent: { echoed: text ?? null },
+                    isError: false,
+                  },
+                });
+                return;
+              }
+              reply({ jsonrpc: "2.0", id: body.id, error: { code: -32601, message: "unknown" } });
+            });
+          });
+          server.once("error", ready.reject);
+          server.listen(0, "127.0.0.1", () => {
+            const address = server.address();
+            if (address === null || typeof address === "string") {
+              ready.reject(new Error("no port"));
+              return;
+            }
+            ready.resolve({ endpoint: `http://127.0.0.1:${address.port}/mcp` });
+          });
+          return ready.promise.then((value) => ({ ...value, server }));
+        },
+        catch: () =>
+          new OrchestratorMcpFailure({
+            code: "orchestration_error",
+            message: "The mock MCP server did not start.",
+          }),
+      }),
+      ({ server }) =>
+        Effect.promise(
+          () =>
+            new Promise<void>((done) => {
+              server.close(() => done());
+            }),
+        ),
+    );
+
+    const connections = yield* McpConnectionService;
+    const created = yield* connections.save({ name: "Test MCP", endpoint: started.endpoint });
+    const snapshots = yield* ExpertSnapshotService;
+    const bindings = yield* ThreadBindingRepository;
+    const snapshot = yield* snapshots.create({
+      expertId: "mcp-expert",
+      revision: 1,
+      persona: "Use the granted MCP tool.",
+      references: [],
+      skillSelection: [],
+      mcpGrants: [{ connectionId: created.connectionId, revision: 1, tools: ["echo"] }],
+      connectionRevisions: { [created.connectionId]: 1 },
+    });
+    yield* bindings.bindAndEnqueue({
+      idempotencyKey: "mcp-parent",
+      requestHash: "mcp-parent",
+      kind: "launch",
+      commandId: "mcp-parent",
+      threadId: "mcp-parent",
+      projectId: "project",
+      snapshotId: snapshot.snapshotId,
+    });
+
+    yield* Layer.build(
+      HttpRouter.serve(
+        McpHttpServer.layerMcpTransport(McpHttpServer.layerLinxMcpToolkit).pipe(
+          Layer.provide(ServerSettings.layerTest()),
+          Layer.provide(liveThreadsLayer),
+          Layer.provide(
+            Layer.mock(McpSessionRegistry.McpSessionRegistry)({
+              resolve: (token) => Effect.succeed(token === "outside" ? undefined : scope(token)),
+            }),
+          ),
+          Layer.provide(
+            Layer.succeed(McpHttpServer.McpClientAuthenticator)({
+              authenticate: () =>
+                Effect.succeed({
+                  ...scope("outside"),
+                  thread: undefined,
+                  client: { access: "full-access", sessionId: "outside", label: "outside" },
+                }),
+            }),
+          ),
+        ),
+        { disableListenLog: true, disableLogger: true },
+      ),
+    );
+    const http = yield* HttpClient.HttpClient;
+    const call = Effect.fn("LinxMcpTest.call")(function* (
+      id: string,
+      method: string,
+      params: object,
+    ) {
+      const headers = {
+        accept: "application/json, text/event-stream",
+        authorization: `Bearer ${id}`,
+      };
+      const initialize = yield* http.post("/mcp", {
+        headers,
+        body: HttpBody.jsonUnsafe({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: "linx-test", version: "1" },
+          },
+        }),
+      });
+      const response = yield* http.post("/mcp", {
+        headers: {
+          ...headers,
+          "mcp-session-id": initialize.headers["mcp-session-id"]!,
+          "mcp-protocol-version": "2025-06-18",
+        },
+        body: HttpBody.jsonUnsafe({ jsonrpc: "2.0", id: 2, method, params }),
+      });
+      return (yield* response.json) as {
+        result?: {
+          structuredContent?: {
+            connections?: ReadonlyArray<{ tools: ReadonlyArray<{ name: string }> }>;
+            tool?: string;
+            text?: string;
+          };
+          isError?: boolean;
+        };
+        error?: unknown;
+      };
+    });
+
+    const listed = yield* call("mcp-parent", "tools/call", {
+      name: "linx_mcp_list_tools",
+      arguments: {},
+    });
+    expect(listed.result?.structuredContent?.connections?.[0]?.tools).toEqual([
+      { name: "echo", description: "Echo the text back." },
+    ]);
+
+    const echoed = yield* call("mcp-parent", "tools/call", {
+      name: "linx_mcp_call",
+      arguments: { connectionId: created.connectionId, tool: "echo", arguments: { text: "hi" } },
+    });
+    expect(echoed.result?.structuredContent).toMatchObject({
+      tool: "echo",
+      text: "hi",
+      isError: false,
+    });
+
+    const invalid = yield* call("mcp-parent", "tools/call", {
+      name: "linx_mcp_call",
+      arguments: { connectionId: created.connectionId, tool: "echo", arguments: { text: 1 } },
+    });
+    expect(invalid.result?.isError).toBe(true);
+
+    const ungranted = yield* call("mcp-parent", "tools/call", {
+      name: "linx_mcp_call",
+      arguments: { connectionId: "other", tool: "echo", arguments: { text: "hi" } },
+    });
+    expect(ungranted.result?.isError).toBe(true);
+  }).pipe(
+    Effect.provide(
+      LinxStorage.layer.pipe(
+        Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "linx-mcp-http-" })),
+        Layer.provideMerge(NodeHttpServer.layerTest),
+      ),
+    ),
+  ),
 );
