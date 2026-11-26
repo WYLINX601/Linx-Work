@@ -181,9 +181,10 @@ describe("DesktopAppIdentity", () => {
 
         const runtimeName = calls.setName[0];
         assert.isDefined(runtimeName);
+        // safeStorage keys its Keychain item on this name; it stays at the pre-rename value.
         assert.equal(runtimeName, `LinxWorkOS ${stage}`);
         assert.match(runtimeName.replaceAll(" ", ""), /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/);
-        assert.equal(calls.setAboutPanelOptions[0]?.applicationName, `LinxWorkOS (${stage})`);
+        assert.equal(calls.setAboutPanelOptions[0]?.applicationName, `Linxwork (${stage})`);
       }),
       { calls, environment },
     );

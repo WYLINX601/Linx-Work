@@ -1,4 +1,4 @@
-export const BUILT_IN_THEME_IDS = ["t3-chat", "grove", "ocean", "ember", "iris"] as const;
+export const BUILT_IN_THEME_IDS = ["linx", "t3-chat", "grove", "ocean", "ember", "iris"] as const;
 
 export const MOBILE_DEFAULT_THEME_ID = "t3-code";
 
@@ -233,6 +233,117 @@ export const T3_CODE_DARK_THEME_COLORS: ThemeColors = {
   terminalSelection: "#343a47",
   terminalScrollbar: "#222222",
   terminalScrollbarHover: "#363636",
+};
+
+const LINX_LIGHT_THEME_OVERRIDES = {
+  canvas: "#FAFAFA",
+  chrome: "#FAFAFA",
+  toolbar: "#FAFAFA",
+  toolbarForeground: "#0A0A0A",
+  toolbarControlForeground: "#0A0A0A",
+  surfaceRaised: "#F4F4F5",
+  text: "#0A0A0A",
+  textMuted: "#52525B",
+  focus: "#D97706",
+  accent: "#B45309",
+  secondary: "#F4F4F5",
+  secondaryForeground: "#0A0A0A",
+  muted: "#F4F4F5",
+  mutedForeground: "#52525B",
+  placeholder: "#52525B",
+  secondaryLabel: "#52525B",
+  iconMuted: "#52525B",
+  update: "#B45309",
+  updateForeground: "#B45309",
+  updateSurface: "#FEF3C7",
+  accentSurfaceForeground: "#0A0A0A",
+  messageForeground: "#0A0A0A",
+  messageAction: "#D97706",
+  messageActionForeground: "#2A2A2A",
+  messageActionHover: "#B45309",
+  codeForeground: "#0A0A0A",
+  sidebarForeground: "#0A0A0A",
+  sidebarMutedForeground: "#52525B",
+  sidebarRowHover: "#F4F4F5",
+  terminalBackground: "#FAFAFA",
+  terminalForeground: "#0A0A0A",
+  terminalCursor: "#D97706",
+  terminalSelection: "#E4E4E7",
+  terminalScrollbar: "#D4D4D8",
+  terminalScrollbarHover: "#A1A1AA",
+} satisfies Partial<ThemeColors>;
+
+const LINX_DARK_THEME_OVERRIDES = {
+  canvas: "#0A0A0A",
+  chrome: "#0A0A0A",
+  toolbar: "#0A0A0A",
+  toolbarForeground: "#FFFFFF",
+  toolbarBorder: "#27272A",
+  toolbarControl: "#141416",
+  toolbarControlForeground: "#FFFFFF",
+  toolbarControlHover: "#1F1F24",
+  surface: "#141416",
+  surfaceRaised: "#1F1F24",
+  surfaceOverlay: "#1F1F24",
+  text: "#FFFFFF",
+  textMuted: "#A1A1AA",
+  border: "#27272A",
+  input: "#3F3F46",
+  focus: "#F59E0B",
+  accent: "#FBBF24",
+  accentForeground: "#0A0A0A",
+  secondary: "#141416",
+  secondaryForeground: "#FFFFFF",
+  muted: "#141416",
+  mutedForeground: "#A1A1AA",
+  placeholder: "#A1A1AA",
+  secondaryLabel: "#A1A1AA",
+  iconMuted: "#A1A1AA",
+  update: "#FBBF24",
+  updateForeground: "#FBBF24",
+  updateSurface: "#2A1F0A",
+  accentSurface: "#1F1F24",
+  accentSurfaceForeground: "#FFFFFF",
+  messageSurface: "#141416",
+  messageForeground: "#FFFFFF",
+  messageAction: "#F59E0B",
+  messageActionForeground: "#0A0A0A",
+  messageActionHover: "#FBBF24",
+  codeBackground: "#141416",
+  codeForeground: "#FFFFFF",
+  sidebar: "#0A0A0A",
+  sidebarForeground: "#FFFFFF",
+  sidebarMutedForeground: "#A1A1AA",
+  sidebarControlSurface: "#141416",
+  sidebarRowHover: "#141416",
+  sidebarRowActive: "#1F1F24",
+  sidebarRowSelected: "#1F1F24",
+  sidebarBorder: "#27272A",
+  terminalBackground: "#0A0A0A",
+  terminalForeground: "#FFFFFF",
+  terminalCursor: "#F59E0B",
+  terminalSelection: "#3F3F46",
+  terminalScrollbar: "#27272A",
+  terminalScrollbarHover: "#3F3F46",
+} satisfies Partial<ThemeColors>;
+
+/** Brand palette; semantic roles (error, warning, search) inherit from the standard theme. */
+const LINX_LIGHT_THEME_COLORS: ThemeColors = {
+  ...T3_CODE_LIGHT_THEME_COLORS,
+  ...LINX_LIGHT_THEME_OVERRIDES,
+};
+
+const LINX_DARK_THEME_COLORS: ThemeColors = {
+  ...T3_CODE_DARK_THEME_COLORS,
+  ...LINX_DARK_THEME_OVERRIDES,
+};
+
+export const LINX_THEME: ThemeDefinition = {
+  id: "linx",
+  label: "Linx",
+  appearance: "light",
+  colors: LINX_LIGHT_THEME_COLORS,
+  variants: { dark: LINX_DARK_THEME_COLORS },
 };
 
 export const T3_CHAT_THEME: ThemeDefinition = {
@@ -911,6 +1022,7 @@ export const IRIS_THEME: ThemeDefinition = {
 };
 
 export const BUILT_IN_THEMES: ReadonlyArray<ThemeDefinition> = [
+  LINX_THEME,
   T3_CHAT_THEME,
   GROVE_THEME,
   OCEAN_THEME,

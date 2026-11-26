@@ -5,7 +5,7 @@
   "baselineCommit": "c6e32aa4ebe0364eaf226003d40d54546d89f418",
   "baselineCommitDate": "2026-11-24T14:57:52Z",
   "lockfile": "pnpm-lock.yaml",
-  "lockfileSha256": "625aa8e82444c8e6e14134a1303cb98d8cd80fc0dfa2c19b77650d33d81662a5",
+  "lockfileSha256": "5db53b47caf3ae69faf0859db3d484e383d4f4cca59c1250cf35d34df6571b33",
   "node": "26.13.1",
   "pnpm": "12.14.0"
 }

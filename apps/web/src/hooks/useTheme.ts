@@ -41,7 +41,7 @@ type DesktopThemeBridge = Pick<DesktopBridge, "setTheme">;
 const STORAGE_KEY = "t3code:theme";
 const MEDIA_QUERY = "(prefers-color-scheme: dark)";
 const DEFAULT_THEME_SNAPSHOT: ThemeSnapshot = {
-  theme: "system",
+  theme: "linx",
   resolvedTheme: "light",
   systemDark: false,
   followSystem: true,
@@ -144,7 +144,8 @@ function getSystemDark() {
 }
 
 function readStoredFollowSystem(theme: Theme): boolean {
-  if (typeof window === "undefined") return theme === "system";
+  // The brand default follows the OS until a mode is stored, like the bare system preference.
+  if (typeof window === "undefined") return theme === "system" || theme === "linx";
 
   try {
     const raw = window.localStorage.getItem(THEME_FOLLOW_SYSTEM_STORAGE_KEY);
@@ -152,7 +153,7 @@ function readStoredFollowSystem(theme: Theme): boolean {
     if (raw === "false") return false;
   } catch {}
 
-  return theme === "system";
+  return theme === "system" || theme === "linx";
 }
 
 function isThemePreferenceMode(value: string | null): value is ThemePreferenceMode {

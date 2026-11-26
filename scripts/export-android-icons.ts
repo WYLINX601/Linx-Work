@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Android masks a 72dp safe area inside 108dp; full-bleed backgrounds and a separate wordmark avoid double silhouettes/cropping.
+// Android masks a 72dp safe area inside 108dp; full-bleed backgrounds and a separate mark avoid double silhouettes/cropping.
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -15,8 +15,8 @@ type IconVariant = "dev" | "nightly" | "prod";
 
 const ADAPTIVE_CANVAS = 432;
 const SPLASH_CANVAS = 1152;
-const TEXT = { x: 15.53, y: 37, width: 94.5, height: 57 };
-const WORDMARK_FRACTION = 0.48;
+const MARK = { x: 22, y: 18.7, width: 58, height: 61.3 };
+const MARK_FRACTION = 0.48;
 const COMPOSER_CANVAS_PT = 1024;
 const SVG_DENSITY = 300;
 const OUTPUT_DIRECTORY = "apps/mobile/assets";
@@ -27,10 +27,10 @@ export class AndroidIconRenderError extends Schema.TaggedError<AndroidIconRender
   { layer: Schema.String, cause: Schema.Defect() },
 ) {}
 
-const wordmarkTransform = (size: number) => {
-  const scale = (size * WORDMARK_FRACTION) / TEXT.width;
-  const tx = (size - TEXT.width * scale) / 2 - TEXT.x * scale;
-  const ty = (size - TEXT.height * scale) / 2 - TEXT.y * scale;
+const markTransform = (size: number) => {
+  const scale = (size * MARK_FRACTION) / MARK.width;
+  const tx = (size - MARK.width * scale) / 2 - MARK.x * scale;
+  const ty = (size - MARK.height * scale) / 2 - MARK.y * scale;
   return `translate(${tx.toFixed(3)} ${ty.toFixed(3)}) scale(${scale.toFixed(4)})`;
 };
 
@@ -87,11 +87,12 @@ const renderForeground = Effect.fn("androidIcons.renderForeground")(function* (
   repositoryRoot: string,
   size: number,
 ) {
-  const text = yield* readLayerSource(repositoryRoot, "prod", "text.svg");
-  const paths = text.match(/<path[^>]*\/>/g) ?? [];
+  const mark = yield* readLayerSource(repositoryRoot, "prod", "text.svg");
+  const defs = mark.match(/<defs>[\s\S]*?<\/defs>/)?.[0] ?? "";
+  const body = mark.replace(/^[\s\S]*?<\/defs>/, "").replace(/<\/svg>\s*$/, "");
   return yield* rasterize(
     "foreground",
-    canvasSvg(size, `<g transform="${wordmarkTransform(size)}">${paths.join("")}</g>`),
+    canvasSvg(size, `${defs}<g transform="${markTransform(size)}">${body}</g>`),
     size,
   );
 });
@@ -105,7 +106,7 @@ const renderDevelopmentBackground = Effect.fn("androidIcons.renderDevelopmentBac
     const background = yield* rasterize("dev-background", fullBleed(paper), size);
     const overlay = yield* rasterize(
       "dev-annotations",
-      canvasSvg(size, `${defs}<g transform="${wordmarkTransform(size)}">${body}</g>`),
+      canvasSvg(size, `${defs}<g transform="${markTransform(size)}">${body}</g>`),
       size,
     );
     return yield* composite("dev-background", background, [{ input: overlay }]);
@@ -183,12 +184,29 @@ const renderSplashIcon = Effect.fn("androidIcons.renderSplashIcon")(function* (
   return yield* composite(`${variant}-splash`, background, [{ input: foreground }]);
 });
 
+const renderMonochromeMark = Effect.fn("androidIcons.renderMonochromeMark")(function* (
+  size: number,
+) {
+  // Android tints the alpha channel, so every shape is one flat color.
+  const silhouette = `
+    <path d="M22 20H38V64H80V80H22Z" fill="#FFFFFF"/>
+    <path d="M38 38H52V64H38Z" fill="#FFFFFF"/>
+    <rect x="62" y="22" width="16" height="16" rx="2" transform="rotate(45 70 30)" fill="#FFFFFF"/>
+    <circle cx="70" cy="55" r="4.2" fill="#FFFFFF"/>`;
+  return yield* rasterize(
+    "monochrome-mark",
+    canvasSvg(size, `<g transform="${markTransform(size)}">${silhouette}</g>`),
+    size,
+  );
+});
+
 const exportAndroidIcons = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const repositoryRoot = path.resolve(import.meta.dirname, "..");
   const outputs = [
     ["android-icon-foreground.png", yield* renderForeground(repositoryRoot, ADAPTIVE_CANVAS)],
+    ["android-icon-mark.png", yield* renderMonochromeMark(ADAPTIVE_CANVAS)],
     [
       "android-icon-background-dev.png",
       yield* renderDevelopmentBackground(repositoryRoot, ADAPTIVE_CANVAS),

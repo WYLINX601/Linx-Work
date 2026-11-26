@@ -4,6 +4,7 @@ import {
   EMBER_THEME,
   GROVE_THEME,
   IRIS_THEME,
+  LINX_THEME,
   OCEAN_THEME,
   T3_CHAT_THEME,
   themeColorToHex,
@@ -41,6 +42,7 @@ function mixThemeColors(first: string, second: string, firstWeight: number): str
 }
 
 const builtInThemeModes = [
+  LINX_THEME,
   T3_CHAT_THEME,
   GROVE_THEME,
   OCEAN_THEME,

@@ -1,12 +1,12 @@
 {
   "id": "/",
-  "name": "Linx",
+  "name": "Linxwork",
   "short_name": "Linx",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#161616",
-  "theme_color": "#161616",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
   "icons": [
     {
       "src": "/favicon-32x32.png",

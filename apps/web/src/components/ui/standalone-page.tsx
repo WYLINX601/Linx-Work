@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { APP_BASE_NAME } from "~/branding";
+import { LinxLockup } from "../brand/LinxLockup";
 
 export function StandalonePage({ children }: { readonly children: ReactNode }) {
   return (
@@ -23,7 +23,7 @@ export function StandalonePageHeader({
   return (
     <>
       <div className="flex items-baseline justify-between gap-3 text-muted-foreground">
-        <span className="text-lg font-medium tracking-tight text-foreground">{APP_BASE_NAME}</span>
+        <LinxLockup className="text-foreground" size={20} wordmarkClassName="text-lg" />
         {context ? <span className="text-sm">{context}</span> : null}
       </div>
       <h1 className="mt-6 text-xl leading-tight font-semibold">{title}</h1>

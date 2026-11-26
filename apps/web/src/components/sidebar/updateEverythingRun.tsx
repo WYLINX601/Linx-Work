@@ -14,7 +14,7 @@ import * as Stream from "effect/Stream";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { msg } from "gt-react";
 
-import { APP_VERSION } from "~/branding";
+import { APP_BASE_NAME, APP_VERSION } from "~/branding";
 import { environmentCatalog } from "~/connection/catalog";
 import { m } from "~/i18n/messages";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
@@ -444,7 +444,8 @@ export function startDesktopUpdateLaunchNotice(): () => void {
           type: "error",
           title: m(msg("Update did not apply")),
           description: m(
-            msg("T3 Code is still on {current}. Install {version} again from the update button.", {
+            msg("{app} is still on {current}. Install {version} again from the update button.", {
+              app: APP_BASE_NAME,
               current: APP_VERSION,
               version: notAppliedVersion,
             }),

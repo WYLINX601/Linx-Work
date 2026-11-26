@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 100 100" fill="none" shape-rendering="geometricPrecision" role="img" aria-label="Linx">
+  <!-- Linx mark, for dark surfaces. Canonical source: linx-official-brand-master.html. -->
+  <defs>
+    <linearGradient id="linx-shelf" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="45%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <radialGradient id="linx-core" cx="38%" cy="34%" r="62%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="28%" stop-color="#FEF08A"/>
+      <stop offset="68%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </radialGradient>
+  </defs>
+  <path d="M22 20H38V64H80V80H22Z" fill="#FFFFFF"/>
+  <path d="M38 38H52V64H38Z" fill="url(#linx-shelf)"/>
+  <rect x="62" y="22" width="16" height="16" rx="2" transform="rotate(45 70 30)" fill="#FFFFFF"/>
+  <circle cx="70" cy="55" r="4.2" fill="url(#linx-core)"/>
+</svg>

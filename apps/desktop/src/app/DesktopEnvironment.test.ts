@@ -60,7 +60,7 @@ describe("DesktopEnvironment", () => {
     }),
   );
 
-  it.effect("keeps LinxWorkOS state separate from legacy Linx and from its own dev state", () =>
+  it.effect("keeps Linxwork state separate from legacy Linx and from its own dev state", () =>
     Effect.gen(function* () {
       const development = yield* makeEnvironment(
         {},
@@ -72,8 +72,8 @@ describe("DesktopEnvironment", () => {
       assert.equal(production.stateDir, "/Users/alice/.linxworkos/userdata");
       assert.equal(development.appUserModelId, "com.linx.work.dev");
       assert.equal(production.appUserModelId, "com.linx.work");
-      assert.equal(production.branding.baseName, "LinxWorkOS");
-      assert.equal(production.branding.displayName, "LinxWorkOS (Beta)");
+      assert.equal(production.branding.baseName, "Linxwork");
+      assert.equal(production.branding.displayName, "Linxwork (Beta)");
     }),
   );
 });

@@ -16,6 +16,7 @@ import { primaryServerKeybindingsAtom } from "../../state/server";
 import { cn } from "../../lib/utils";
 import { useIssuesSupported, usePullRequestsSupported } from "../../state/environments";
 import { APP_BASE_NAME } from "../../branding";
+import { LinxLockup } from "../brand/LinxLockup";
 import {
   resolveEnvironmentIdentificationPillLabel,
   resolveSidebarStageBackdropVariant,
@@ -167,7 +168,7 @@ function HistoryNavigationButton({
   );
 }
 
-function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
+export function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
   return (
     <Link
       aria-label={APP_BASE_NAME}
@@ -183,9 +184,7 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
 }
 
 function SidebarBrandMark() {
-  return (
-    <span className="min-w-0 truncate text-sm font-medium tracking-tight">{APP_BASE_NAME}</span>
-  );
+  return <LinxLockup size={18} wordmarkClassName="text-sm" />;
 }
 
 function SidebarUtilityItem({

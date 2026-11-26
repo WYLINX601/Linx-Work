@@ -230,7 +230,7 @@ effectIt.effect("adds a directory an installer wrote to the registry after launc
   }),
 );
 
-effectIt.effect("defaults the server home to LinxWorkOS without reusing the old Linx home", () =>
+effectIt.effect("defaults the server home to Linxwork without reusing the old Linx home", () =>
   Effect.gen(function* () {
     assert.equal(yield* resolveBaseDir(undefined), "/home/linx-user/.linxworkos");
     assert.equal(yield* resolveBaseDir("~/custom"), "/home/linx-user/custom");

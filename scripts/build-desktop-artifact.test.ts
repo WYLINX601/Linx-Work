@@ -538,9 +538,9 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
       assert.isNull(preview.publish);
       assert.isNull(previewChannel.publish);
-      assert.equal(previewChannel.productName, "LinxWorkOS");
-      assert.equal(previewChannel.artifactName, "LinxWorkOS-${version}-${arch}.${ext}");
-      assert.nestedPropertyVal(previewChannel, "mac.protocols[0].name", "LinxWorkOS");
+      assert.equal(previewChannel.productName, "Linxwork");
+      assert.equal(previewChannel.artifactName, "Linxwork-${version}-${arch}.${ext}");
+      assert.nestedPropertyVal(previewChannel, "mac.protocols[0].name", "Linxwork");
       assert.nestedPropertyVal(previewChannel, "mac.protocols[0].schemes[0]", "linx");
       assert.nestedPropertyVal(previewChannel, "mac.protocols[0].schemes[1]", "linx-dev");
       assert.deepStrictEqual(release.publish, [

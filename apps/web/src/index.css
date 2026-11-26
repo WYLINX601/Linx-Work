@@ -272,6 +272,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-linx-accent: var(--linx-accent);
   --color-popover-foreground: var(--contrast-popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--contrast-card-foreground);
@@ -1146,6 +1147,14 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 :root {
   color-scheme: light;
   --radius: 0.5rem;
+  /* Brand-only accent for the wordmark period. Never follows the selected theme. */
+  --linx-accent: #d97706;
+  /* Fixed brand gradients for the mark; intentionally not theme tokens. */
+  --linx-shelf-start: #fde047;
+  --linx-shelf-middle: #f59e0b;
+  --linx-shelf-end: #ea580c;
+  --linx-core-highlight: #fffbeb;
+  --linx-core-warm: #fef08a;
   --background: var(--color-zinc-25);
   --app-chrome-background: var(--background);
   --toolbar-background: var(--app-chrome-background);
@@ -1223,6 +1232,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
        over neutral-950, so cards, popovers, and the composer still lift. Borders and hover
        states provide separation without milky gray fills. */
     --background: #000;
+    --linx-accent: #f59e0b;
     --surface-raised: color-mix(in srgb, var(--color-neutral-950) 97%, var(--color-white));
     --foreground: var(--color-neutral-100);
     --card: color-mix(in srgb, var(--color-neutral-950) 97%, var(--color-white));

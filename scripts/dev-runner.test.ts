@@ -849,7 +849,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         }).pipe(Effect.scoped),
       );
 
-      it.effect("seeds a worktree database from the LinxWorkOS home only when it has none", () =>
+      it.effect("seeds a worktree database from the Linxwork home only when it has none", () =>
         Effect.gen(function* () {
           const path = yield* Path.Path;
           const root = yield* makeWorktree;

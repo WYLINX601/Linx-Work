@@ -6,7 +6,12 @@
  * URL schemes, ports, or app identifiers.
  */
 
-export const LINX_APP_BASE_NAME = "LinxWorkOS";
+export const LINX_APP_BASE_NAME = "Linxwork";
+/**
+ * Electron derives its macOS Keychain item from the app name, so existing profiles
+ * encrypted under the pre-rename name must keep that name to stay decryptable.
+ */
+export const LINX_SAFE_STORAGE_APP_BASE_NAME = "LinxWorkOS";
 export const LINX_APP_SLUG = "linx";
 export const LINX_RELEASE_REPOSITORY = "WYLINX601/Linx-Work";
 

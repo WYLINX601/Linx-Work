@@ -6,7 +6,7 @@
 
 | 项                      | Linx                                                  | 上游 T3 Code                                                    | Synara                        |
 | ----------------------- | ----------------------------------------------------- | --------------------------------------------------------------- | ----------------------------- |
-| 产品名                  | `LinxWorkOS`                                          | `T3 Code`                                                       | `Synara`                      |
+| 产品名                  | `Linxwork`（显示名）                                  | `T3 Code`                                                       | `Synara`                      |
 | App ID                  | `com.linx.work`                                       | `com.t3tools.t3code`                                            | `com.emanueledipietro.synara` |
 | URL Scheme              | `linx` / `linx-dev`                                   | `t3code` / `t3code-dev`                                         | —                             |
 | Home                    | `~/.linxworkos`                                       | `~/.t3`                                                         | `~/.synara`                   |
@@ -23,7 +23,7 @@
 
 ### 旧版 Linx 的对话
 
-旧版 `Linx.app` 的 `~/.linx/userdata/state.sqlite` 使用不同的 SQLite 迁移历史，不是 LinxWorkOS 支持直接升级的 T3 V1 库。LinxWorkOS 默认在 `~/.linxworkos/userdata` 创建自己的数据，不会读取或导入旧库。此前失败启动留下的 `~/.linx/userdata/statev2.sqlite` 是导入副本，不代表迁移完成。
+旧版 `Linx.app` 的 `~/.linx/userdata/state.sqlite` 使用不同的 SQLite 迁移历史，不是 Linxwork 支持直接升级的 T3 V1 库。Linxwork 默认在 `~/.linxworkos/userdata` 创建自己的数据，不会读取或导入旧库。此前失败启动留下的 `~/.linx/userdata/statev2.sqlite` 是导入副本，不代表迁移完成。
 
 用旧版 `Linx.app` 查看历史。不要将 `T3CODE_HOME` 指向 `~/.linx`，不要复制旧库到新目录，也不要修改迁移记录来绕过检查。
 
@@ -31,14 +31,15 @@
 
 桌面端使用 Electron `safeStorage`，密钥条目由 **应用名 + `app.getPath("userData")`** 决定：
 
-- 显示名：`LinxWorkOS (Beta)` / `LinxWorkOS (Nightly)` / `LinxWorkOS (Dev)`；macOS 预览安装包为 `LinxWorkOS.app`。
+- 显示名：`Linxwork (Beta)` / `Linxwork (Nightly)` / `Linxwork (Dev)`；macOS 安装包为 `Linxwork.app`。
+- safeStorage 应用名：仍为 `LinxWorkOS <stage>`（`LINX_SAFE_STORAGE_APP_BASE_NAME`）。Electron 用应用名定位 Keychain 条目，改名会让旧 profile 无法解密，因此只把显示名改为 Linxwork。
 - UserData：`~/Library/Application Support/linxworkos`（prod）或 `linxworkos-dev`（dev）。
 - 上游 T3 Code 的 `t3code-v2` / `T3 Code (Dev)` 不再被读取或迁移。
 
 手工核对（macOS）：
 
 ```sh
-security dump-keychain | grep -i "LinxWorkOS Safe Storage"
+security dump-keychain | grep -i "LinxWorkOS .* Safe Storage\|Linxwork .* Safe Storage"
 ls -d "$HOME/Library/Application Support/linxworkos" "$HOME/Library/Application Support/linxworkos-dev"
 ```
 
@@ -51,7 +52,7 @@ ls -d "$HOME/Library/Application Support/linxworkos" "$HOME/Library/Application 
 - `T3CODE_*` 环境变量：upstream 兼容接口。显式设置时优先于 Linx 默认值。
 - CLI 可执行名 `t3` 与 launcher 内部参数 `--t3code-dev-root`：改名会扩散到打包与文档，单独评估。
 - 遥测 service name（`t3code-server`、`t3code` namespace）：不影响本地状态隔离。
-- 运行时工具名称、图标、营销页及移动端商店配置不随 macOS 安装包改名。
+- 运行时工具名称与营销站文案：不随品牌刷新改名；应用图标与移动端 Android 图标已在品牌刷新中更新。
 
 ## 并行启动核对
 
@@ -61,7 +62,7 @@ vp run dev:server            # 默认 13774
 ls -d ~/.linxworkos
 
 # Synara（独立仓库）
-# 默认 3773；不得指向 LinxWorkOS 或旧版 Linx 的数据目录。
+# 默认 3773；不得指向 Linxwork 或旧版 Linx 的数据目录。
 ```
 
 判定：端口不冲突；Home、UserData、Scheme、App ID 均不同；Linx 不读取 Synara 或 T3 Code 目录。
