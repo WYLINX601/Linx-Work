@@ -5,20 +5,38 @@ import "~/index.css";
 import { render } from "../../../test/render";
 import { LinxThreadBindingBadge } from "./LinxThreadBindingBadge";
 
-const fixture = vi.hoisted(() => ({ state: "loading" }));
+const fixture = vi.hoisted(() => ({
+  state: "loading",
+  suiteRole: "lead" as "lead" | "member",
+  expertDefinitionsQuery: {},
+}));
 vi.mock(import("../../state/session"), async (original) => ({
   ...(await original()),
   useEnvironmentScope: () => true,
 }));
+vi.mock(import("../../state/linx"), async (original) => ({
+  ...(await original()),
+  linxExpertDefinitions: (() => fixture.expertDefinitionsQuery) as never,
+}));
 vi.mock(import("../../state/query"), async (original) => ({
   ...(await original()),
-  useEnvironmentQuery: (() => ({
-    isPending: fixture.state === "loading",
-    error: fixture.state === "error" ? "failed" : null,
+  useEnvironmentQuery: ((query: unknown) => ({
+    isPending: query !== null && fixture.state === "loading",
+    error: query !== null && fixture.state === "error" ? "failed" : null,
     data:
-      fixture.state === "bound"
-        ? { expertId: "reviewer", revision: 12, contentHash: "b".repeat(64) }
-        : null,
+      query === fixture.expertDefinitionsQuery
+        ? []
+        : query !== null && fixture.state === "bound"
+          ? { expertId: "reviewer", revision: 12, contentHash: "b".repeat(64) }
+          : query !== null && fixture.state === "suite"
+            ? {
+                expertId: "reviewer",
+                expertTitle: "Frozen Reviewer",
+                revision: 12,
+                contentHash: "b".repeat(64),
+                suite: { name: "Review team", revision: 5, role: fixture.suiteRole },
+              }
+            : null,
   })) as never,
 }));
 
@@ -45,4 +63,29 @@ it("keeps one header slot through loading, bound, unbound, and error states", as
   await screen.rerender(<LinxThreadBindingBadge threadRef={threadRef} />);
   await expect.element(screen.getByText("Expert binding could not be read.")).toBeInTheDocument();
   expect(slot.getBoundingClientRect().width).toBe(width);
+});
+
+it("shows the bound Suite revision and both roles in the header", async () => {
+  fixture.state = "suite";
+  fixture.suiteRole = "lead";
+  await using screen = await render(<LinxThreadBindingBadge threadRef={threadRef} />);
+  await expect.element(screen.getByText("Suite v5 · Lead")).toBeVisible();
+  await expect.element(screen.getByText("Review team")).toBeVisible();
+  fixture.suiteRole = "member";
+  await screen.rerender(<LinxThreadBindingBadge threadRef={threadRef} />);
+  await expect.element(screen.getByText("Suite v5 · Member")).toBeVisible();
+  await expect.element(screen.getByText("Suite v5 · Lead")).not.toBeInTheDocument();
+});
+
+it("shows the bound Expert revision in member details, but not for a standalone Expert", async () => {
+  fixture.state = "suite";
+  fixture.suiteRole = "member";
+  await using screen = await render(<LinxThreadBindingBadge threadRef={threadRef} memberDetail />);
+  const frozenReference = screen.getByText(
+    "Frozen Expert snapshot: Frozen Reviewer · v12 · bbbbbbbb",
+  );
+  await expect.element(frozenReference).toBeVisible();
+  fixture.state = "bound";
+  await screen.rerender(<LinxThreadBindingBadge threadRef={threadRef} memberDetail />);
+  await expect.element(frozenReference).not.toBeInTheDocument();
 });

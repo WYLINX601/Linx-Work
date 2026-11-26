@@ -155,6 +155,7 @@ export const LinxMcpConnectionSummary = Schema.Struct({
   disabled: Schema.Boolean,
   updatedAt: TrimmedNonEmptyString,
   toolCount: NonNegativeInt,
+  readOnlyTools: Schema.optionalKey(Schema.Array(TrimmedNonEmptyString)),
 });
 export type LinxMcpConnectionSummary = typeof LinxMcpConnectionSummary.Type;
 
@@ -183,6 +184,7 @@ export const LinxSaveMcpConnectionInput = Schema.Struct({
   endpoint: TrimmedNonEmptyString,
   authMode: LinxMcpAuthMode,
   bearerToken: Schema.optionalKey(TrimmedNonEmptyString),
+  readOnlyTools: Schema.optionalKey(Schema.Array(TrimmedNonEmptyString)),
 });
 export type LinxSaveMcpConnectionInput = typeof LinxSaveMcpConnectionInput.Type;
 
@@ -216,6 +218,9 @@ export type LinxSuiteMemberInput = typeof LinxSuiteMemberInput.Type;
 
 export const LinxSuitePolicy = Schema.Struct({
   maxActiveDelegations: NonNegativeInt,
+  sandbox: Schema.optionalKey(Schema.Literals(["read-only", "workspace-write"])),
+  workspaceIsolation: Schema.optionalKey(Schema.Literals(["shared", "worktree"])),
+  approval: Schema.optionalKey(Schema.Literals(["never", "on-request"])),
 });
 export type LinxSuitePolicy = typeof LinxSuitePolicy.Type;
 
@@ -343,6 +348,15 @@ export const LinxThreadBinding = Schema.Struct({
   revision: NonNegativeInt,
   projectId: ProjectId,
   contentHash: Sha256Hex,
+  expertTitle: Schema.optionalKey(TrimmedNonEmptyString),
+  suite: Schema.optionalKey(
+    Schema.Struct({
+      name: TrimmedNonEmptyString,
+      revision: NonNegativeInt,
+      role: Schema.Literals(["lead", "member"]),
+      memberTitle: Schema.optionalKey(TrimmedNonEmptyString),
+    }),
+  ),
   createdAt: TrimmedNonEmptyString,
 });
 export type LinxThreadBinding = typeof LinxThreadBinding.Type;

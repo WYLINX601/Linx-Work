@@ -54,6 +54,7 @@ import type * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import { parseGitCloneProgressLine } from "../project/gitCloneProgress.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
+import { SuiteProvisioningThread, suiteThreadRole } from "../linx/suite/SuiteExecutionPolicy.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
@@ -900,7 +901,10 @@ const make = Effect.gen(function* () {
             branch,
             worktreePath,
           })
-          .pipe(Effect.mapError(mapError(input, "update-thread", threadId)));
+          .pipe(
+            Effect.provideService(SuiteProvisioningThread, threadId),
+            Effect.mapError(mapError(input, "update-thread", threadId)),
+          );
       }
       workspaceRecorded = true;
 
@@ -960,6 +964,7 @@ const make = Effect.gen(function* () {
                   expectedWorktreePath: worktreeCwd,
                 })
                 .pipe(
+                  Effect.provideService(SuiteProvisioningThread, threadId),
                   Effect.catchCause((cause) =>
                     Effect.logWarning("Parent thread worktree branch update failed", {
                       threadId,
@@ -1031,7 +1036,7 @@ const make = Effect.gen(function* () {
       }
       yield* setupTracker.stageStatus(threadId, "setup-script", "running");
       const setup =
-        worktreePath === null
+        worktreePath === null || suiteThreadRole(threadId) !== undefined
           ? ({ status: "no-script" } as const)
           : yield* setupScripts
               .runForThread({
@@ -1203,7 +1208,7 @@ const make = Effect.gen(function* () {
                     worktreePath: null,
                     branch: null,
                   })
-                  .pipe(Effect.ignore),
+                  .pipe(Effect.provideService(SuiteProvisioningThread, threadId), Effect.ignore),
               ),
               Effect.catchCause((removeCause) =>
                 Effect.logWarning("Failed to remove an abandoned thread worktree", {

@@ -271,6 +271,37 @@ describe("CodexAdapterV2 runtime policy", () => {
     }),
   );
 
+  it.effect("keeps the named Suite sandbox instead of resetting it to a broad legacy sandbox", () =>
+    Effect.gen(function* () {
+      const params = yield* CodexAdapterV2.buildCodexTurnStartParams({
+        nativeThreadId: "native-suite-member",
+        codexInput: [{ type: "text", text: "test" }],
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+        runtimePolicy: {
+          runtimeMode: "auto-accept-edits",
+          interactionMode: "default",
+          cwd: "/worktrees/suite-member",
+          suiteIsolation: true,
+          approvalPolicy: "never",
+          sandboxPolicy: {
+            type: "workspaceWrite",
+            writableRoots: ["/worktrees/suite-member"],
+            networkAccess: false,
+            excludeTmpdirEnvVar: true,
+            excludeSlashTmp: true,
+          },
+          workspace: {
+            folders: [{ name: "parent", path: "/work/parent", isGitRepository: true }],
+            extraRoots: ["/work/parent"],
+          },
+        },
+      });
+      assert.isUndefined(params.sandboxPolicy);
+      assert.notInclude(JSON.stringify(params), "/work/parent");
+      assert.equal(params.approvalPolicy, "never");
+    }),
+  );
+
   it.effect("sends the chosen cyber access program, else the model's default", () =>
     Effect.gen(function* () {
       const build = (value?: string, cyberAccess?: { defaultProgram: string | undefined }) =>

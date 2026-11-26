@@ -142,6 +142,13 @@ import { WITHHELD, withoutWebhookUrlToken } from "../scheduledTasks/webhookUrlTo
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as PeerForwarding from "../peer/PeerForwarding.ts";
 import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
+import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
+import { SuiteDelegationService } from "../linx/suite/SuiteDelegationService.ts";
+import {
+  SuiteDelegationAuthority,
+  suiteLaunchEnabled,
+  suiteThreadRole,
+} from "../linx/suite/SuiteExecutionPolicy.ts";
 
 // Return recoverable handles before common MCP client timeouts expire.
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
@@ -185,10 +192,14 @@ export interface OrchestratorMcpServiceShape {
     scope: McpInvocationScope,
     input: OrchestratorMcpDelegateTaskInput,
   ) => Effect.Effect<OrchestratorMcpDelegateTaskResult, OrchestratorMcpFailure>;
+  readonly resolveSuiteParentRun: (
+    scope: McpInvocationScope,
+  ) => Effect.Effect<RunId, OrchestratorMcpFailure>;
   readonly delegateTaskWithCommand: (
     scope: McpInvocationScope,
     input: OrchestratorMcpDelegateTaskInput,
     commandId: CommandId,
+    parentRunId: RunId,
   ) => Effect.Effect<OrchestratorMcpDelegateTaskResult, OrchestratorMcpFailure>;
   readonly taskStatus: (
     scope: McpInvocationScope,
@@ -1372,6 +1383,8 @@ const make = Effect.gen(function* () {
   const gitDriver = yield* GitVcsDriver.GitVcsDriver;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const remoteDelegation = yield* RemoteDelegation.RemoteDelegation;
+  const suiteDelegations = yield* Effect.serviceOption(SuiteDelegationService);
+  const suiteEnabled = yield* suiteLaunchEnabled;
 
   const requireProject = (projectId: ProjectId) =>
     projects.getById(projectId).pipe(
@@ -1713,6 +1726,7 @@ const make = Effect.gen(function* () {
     readonly parent: Pick<OrchestrationV2ThreadProjection, "thread">;
     readonly target: OrchestratorMcpTarget | undefined;
     readonly providers: ReadonlyArray<ServerProvider>;
+    readonly frozenOptions?: boolean;
     /** Receipt replays bypass current settings because they start no work. Dispatch must reuse the checked command ID. */
     readonly skipProjectEnablementFilter?: boolean;
   }): Effect.fn.Return<ResolvedTarget, OrchestratorMcpFailure> {
@@ -1812,6 +1826,7 @@ const make = Effect.gen(function* () {
     const requestedOptions = yield* validateModelOptions(provider, model, input.target?.options);
 
     const inheritsOptions =
+      input.frozenOptions !== true &&
       instanceId === inheritedSelection.instanceId &&
       (advertised?.slug ?? model) ===
         (advertisedModel(provider, inheritedSelection.model)?.slug ?? inheritedSelection.model);
@@ -2446,11 +2461,56 @@ const make = Effect.gen(function* () {
     return task;
   });
 
+  const resolveSuiteParentRun = Effect.fn("OrchestratorMcpService.resolveSuiteParentRun")(
+    function* (callerScope: McpInvocationScope) {
+      const { scope, parent } = yield* loadThreadCaller(callerScope, "linx_suite_delegate");
+      const run = ThreadManagementService.latestActiveRun(parent);
+      if (
+        !suiteEnabled ||
+        suiteThreadRole(scope.thread.threadId) !== "lead" ||
+        scope.client !== undefined
+      ) {
+        return yield* failure(
+          "capability_denied",
+          "Only an authenticated Suite Lead may delegate.",
+        );
+      }
+      if (run?.rootNodeId == null || run.providerInstanceId !== scope.thread.providerInstanceId) {
+        return yield* failure(
+          "parent_not_active",
+          "Delegation requires the active Suite Lead run.",
+        );
+      }
+      return run.id;
+    },
+  );
+
   const delegateTaskImpl = Effect.fn("OrchestratorMcpService.delegateTask")(function* (
     callerScope: McpInvocationScope,
     input: OrchestratorMcpDelegateTaskInput,
-    trustedCommandId?: CommandId,
+    trusted?: { readonly commandId: CommandId; readonly parentRunId: RunId },
   ) {
+    const callerRole =
+      callerScope.thread === undefined ? undefined : suiteThreadRole(callerScope.thread.threadId);
+    if (trusted === undefined && callerRole !== undefined) {
+      return yield* failure(
+        "capability_denied",
+        "Suite threads must use the frozen Suite delegation entry.",
+      );
+    }
+    if (trusted !== undefined) {
+      const activeRunId = yield* resolveSuiteParentRun(callerScope);
+      if (
+        activeRunId !== trusted.parentRunId ||
+        input.target?.environmentId !== undefined ||
+        input.mode === "wait"
+      ) {
+        return yield* failure(
+          "capability_denied",
+          "The Suite delegation does not match its authorized run or target.",
+        );
+      }
+    }
     const environmentId =
       input.target === undefined
         ? undefined
@@ -2493,18 +2553,25 @@ const make = Effect.gen(function* () {
     const providers = yield* loadProviders;
     const key = yield* requestKey(input.clientRequestId);
     const commandId =
-      trustedCommandId ??
+      trusted?.commandId ??
       stableCommandId({
         scope,
         requestKey: key,
         operation: "delegate-task",
       });
     const isRetryOfAcceptedDelegation = yield* threadManagement.hasReceipt(commandId);
+    if (trusted !== undefined && isRetryOfAcceptedDelegation) {
+      return yield* failure(
+        "orchestration_error",
+        "This Suite request already has a native receipt; reconcile it instead of dispatching again.",
+      );
+    }
     const target = yield* resolveTargetRechecking({
       parent,
       target: input.target,
       providers,
       cwd: yield* parentWorkspaceCwd(parent),
+      frozenOptions: trusted !== undefined,
       skipProjectEnablementFilter: isRetryOfAcceptedDelegation,
     });
     const runtimeMode = yield* resolveRuntimeMode(
@@ -2545,8 +2612,21 @@ const make = Effect.gen(function* () {
           );
       }
       workspaceStrategy = { type: "worktree", baseRef: base.commitSha, startFromOrigin: false };
+    } else if (trusted !== undefined) {
+      // The Suite guard reads durable native lineage. Even a shared checkout must
+      // commit the Task and Child before the first Run can resolve its policy.
+      workspaceStrategy =
+        parent.thread.worktreePath === null
+          ? { type: "root" }
+          : { type: "existing_worktree", worktreePath: parent.thread.worktreePath };
     }
     const parentNodeId = parentRun.rootNodeId;
+    if (trusted !== undefined && parentRun.id !== trusted.parentRunId) {
+      return yield* failure(
+        "parent_not_active",
+        "The original Suite Lead run no longer owns this delegation.",
+      );
+    }
     // The command commits the child's preparing run, which only this call
     // prepares, so a caller that goes away must not stop it in between.
     return yield* Effect.uninterruptibleMask((restore) =>
@@ -2554,6 +2634,24 @@ const make = Effect.gen(function* () {
         // ThreadManagementService.dispatch is the chokepoint for this command
         // type's own enablement check, using the same command id and its
         // receipt-replay exemption, so no separate assert runs here.
+        if (trusted !== undefined) {
+          if (Option.isNone(suiteDelegations)) {
+            return yield* failure(
+              "capability_denied",
+              "Suite authorization storage is unavailable.",
+            );
+          }
+          yield* suiteDelegations.value
+            .assertSubmission({
+              commandId,
+              parentThreadId: scope.thread.threadId,
+              parentRunId: parentRun.id,
+              parentProjectId: parent.thread.projectId,
+              expectedChildThreadId: IdAllocator.derive.delegatedTaskThread({ commandId }),
+              nativeInput: input,
+            })
+            .pipe(Effect.mapError((error) => failure("capability_denied", error.message)));
+        }
         const result = yield* threadManagement
           .dispatch({
             type: "delegated_task.request",
@@ -2575,6 +2673,16 @@ const make = Effect.gen(function* () {
             completionWake: input.mode === "wait" ? "settled_only" : "always",
           })
           .pipe(
+            Effect.provideService(
+              SuiteDelegationAuthority,
+              trusted === undefined
+                ? undefined
+                : {
+                    commandId,
+                    parentThreadId: scope.thread.threadId,
+                    parentRunId: parentRun.id,
+                  },
+            ),
             Effect.mapError((error) =>
               error._tag === "ThreadManagementProviderInstanceDisabledError"
                 ? threadManagementFailure(error)
@@ -3090,9 +3198,10 @@ const make = Effect.gen(function* () {
     delegateTask: Effect.fn("OrchestratorMcpService.delegateTask.public")(function* (scope, input) {
       return yield* delegateTaskImpl(scope, input);
     }),
+    resolveSuiteParentRun,
     delegateTaskWithCommand: Effect.fn("OrchestratorMcpService.delegateTaskWithCommand")(
-      function* (scope, input, commandId) {
-        return yield* delegateTaskImpl(scope, input, commandId);
+      function* (scope, input, commandId, parentRunId) {
+        return yield* delegateTaskImpl(scope, input, { commandId, parentRunId });
       },
     ),
     taskStatus: Effect.fn("OrchestratorMcpService.taskStatus")(function* (callerScope, taskId) {

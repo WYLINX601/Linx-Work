@@ -1,5 +1,5 @@
 // @effect-diagnostics globalJsonInEffect:off - structuredContent came from JSON.parse and cannot cycle.
-import { CommandId, NodeId, OrchestratorMcpFailure } from "@t3tools/contracts";
+import { OrchestratorMcpFailure, type LinxSuiteDelegateInput } from "@t3tools/contracts";
 import { Ajv } from "ajv";
 import * as Effect from "effect/Effect";
 
@@ -7,7 +7,9 @@ import * as ExpertSnapshotService from "../../../linx/expert/ExpertSnapshotServi
 import * as ExternalMcpClient from "../../../linx/mcp/ExternalMcpClient.ts";
 import * as McpConnectionService from "../../../linx/mcp/McpConnectionService.ts";
 import * as SecretStore from "../../../linx/secret/SecretStore.ts";
+import { SuiteDelegationRecovery } from "../../../linx/suite/SuiteDelegationRecovery.ts";
 import * as SuiteDelegationService from "../../../linx/suite/SuiteDelegationService.ts";
+import { suiteThreadRole } from "../../../linx/suite/SuiteExecutionPolicy.ts";
 import type { LinxExpertSnapshot } from "../../../linx/expert/ExpertSnapshotService.ts";
 import * as SkillPackageService from "../../../linx/skill/SkillPackageService.ts";
 import * as ThreadBindingRepository from "../../../linx/thread/ThreadBindingRepository.ts";
@@ -25,6 +27,11 @@ const invalid = (message: string) =>
   new OrchestratorMcpFailure({ code: "invalid_request", message });
 
 const PAGE_SIZE = 20;
+
+const isSuiteCaller = Effect.gen(function* () {
+  const { thread } = yield* McpInvocationContext.McpInvocationContext;
+  return thread !== undefined && suiteThreadRole(thread.threadId) !== undefined;
+});
 
 const resolveContext = Effect.gen(function* () {
   const scope = yield* McpInvocationContext.McpInvocationContext;
@@ -207,6 +214,7 @@ const validatorFor = (schemaHash: string, schema: unknown) => {
 
 const listMcpTools = Effect.gen(function* () {
   const snapshot = yield* resolveContext;
+  const suite = yield* isSuiteCaller;
   const connections = yield* McpConnectionService.McpConnectionService;
   const result: Array<{
     connectionId: string;
@@ -227,10 +235,14 @@ const listMcpTools = Effect.gen(function* () {
     if (allowed.length !== grant.tools.length) {
       return yield* invalid("A granted MCP tool no longer exists in the frozen connection.");
     }
+    const permitted = suite
+      ? allowed.filter((tool) => resolved.readOnlyTools.includes(tool.name))
+      : allowed;
+    if (permitted.length === 0) continue;
     result.push({
       connectionId: resolved.connectionId,
       name: resolved.name,
-      tools: allowed.map((tool) => ({ name: tool.name, description: tool.description })),
+      tools: permitted.map((tool) => ({ name: tool.name, description: tool.description })),
     });
   }
   return { connections: result };
@@ -242,6 +254,7 @@ const callMcpTool = Effect.fn("linx.mcpCall")(function* (input: {
   readonly arguments: Record<string, unknown>;
 }) {
   const snapshot = yield* resolveContext;
+  const suite = yield* isSuiteCaller;
   const grant = snapshot.mcpGrants.find((entry) => entry.connectionId === input.connectionId);
   if (grant === undefined) {
     return yield* invalid("This MCP connection is not granted to the thread's expert snapshot.");
@@ -258,6 +271,9 @@ const callMcpTool = Effect.fn("linx.mcpCall")(function* (input: {
   }
   if (resolved.disabled) {
     return yield* invalid("The granted MCP connection has been disabled.");
+  }
+  if (suite && !resolved.readOnlyTools.includes(input.tool)) {
+    return yield* invalid("This tool is not approved for read-only Suite access.");
   }
   const tool = resolved.tools.find((entry) => entry.name === input.tool);
   if (tool === undefined) {
@@ -302,7 +318,11 @@ const callMcpTool = Effect.fn("linx.mcpCall")(function* (input: {
   const stillAllowed = yield* connections
     .resolveRevision(grant.connectionId, grant.revision)
     .pipe(Effect.mapError(() => invalid("The granted MCP connection could not be re-read.")));
-  if (stillAllowed === null || stillAllowed.disabled) {
+  if (
+    stillAllowed === null ||
+    stillAllowed.disabled ||
+    (suite && !stillAllowed.readOnlyTools.includes(input.tool))
+  ) {
     return yield* invalid("The MCP connection was revoked while the call was running.");
   }
   if (
@@ -326,8 +346,6 @@ export const mcpLayer = McpToolAccess.toLayer(LinxMcpToolkit, {
   linx_mcp_call: McpToolAccess.readsAsCaller((input) => callMcpTool(input)),
 });
 
-const terminalTaskStatuses = new Set(["completed", "failed", "cancelled", "interrupted"]);
-
 const toMcpFailure = (error: {
   readonly code: string;
   readonly message: string;
@@ -340,51 +358,12 @@ const toMcpFailure = (error: {
     message: error.message,
   });
 
-type ReconcileFailure = { readonly code: string; readonly message: string };
-
-const reconcileSuiteTasks: (
-  scope: McpInvocationContext.McpInvocationScope,
-  threadId: string,
-  delegations: {
-    readonly active: (
-      threadId: string,
-    ) => Effect.Effect<
-      ReadonlyArray<{ readonly key: string; readonly taskId: string | null }>,
-      ReconcileFailure
-    >;
-    readonly markCompleted: (key: string) => Effect.Effect<void, ReconcileFailure>;
-  },
-  orchestrator: {
-    readonly taskStatus: (
-      scope: McpInvocationContext.McpInvocationScope,
-      taskId: NodeId,
-    ) => Effect.Effect<{ readonly status: string }, ReconcileFailure>;
-  },
-) => Effect.Effect<void, ReconcileFailure> = Effect.fn("linx.reconcileSuiteTasks")(
-  function* (scope, threadId, delegations, orchestrator) {
-    const active = yield* delegations.active(threadId);
-    for (const entry of active) {
-      if (entry.taskId === null) continue;
-      const status = yield* orchestrator
-        .taskStatus(scope, NodeId.make(entry.taskId))
-        .pipe(Effect.orElseSucceed(() => null));
-      if (status !== null && terminalTaskStatuses.has(status.status)) {
-        yield* delegations.markCompleted(entry.key).pipe(Effect.ignore);
-      }
-    }
-  },
-);
-
 const suiteMembers = Effect.gen(function* () {
   const scope = yield* McpInvocationContext.McpInvocationContext;
   if (scope.thread === undefined) {
     return yield* invalid("This tool requires a Linx thread.");
   }
   const delegations = yield* SuiteDelegationService.SuiteDelegationService;
-  const orchestrator = yield* OrchestratorMcpService;
-  yield* reconcileSuiteTasks(scope, scope.thread.threadId, delegations, orchestrator).pipe(
-    Effect.ignore,
-  );
   const members = yield* delegations
     .members(scope.thread.threadId)
     .pipe(Effect.mapError(toMcpFailure));
@@ -399,42 +378,81 @@ const suiteMembers = Effect.gen(function* () {
   };
 });
 
-const suiteDelegate = Effect.fn("linx.suiteDelegate")(function* (input: {
-  readonly memberKey: string;
-  readonly clientRequestId: string;
-  readonly objective: string;
-  readonly acceptance: string;
-}) {
+const suiteDelegate = Effect.fn("linx.suiteDelegate")(function* (input: LinxSuiteDelegateInput) {
   const scope = yield* McpInvocationContext.McpInvocationContext;
-  if (scope.thread === undefined) {
-    return yield* invalid("This tool requires a Linx thread.");
+  if (
+    scope.thread === undefined ||
+    scope.client !== undefined ||
+    !scope.capabilities.has("orchestration")
+  ) {
+    return yield* invalid("This tool requires an authorized Suite Lead thread.");
   }
   const delegations = yield* SuiteDelegationService.SuiteDelegationService;
+  const recovery = yield* SuiteDelegationRecovery;
   const orchestrator = yield* OrchestratorMcpService;
-  const threadId = scope.thread.threadId;
+  const request = { ...input, parentThreadId: scope.thread.threadId };
+  const load = delegations.find(request).pipe(Effect.mapError(toMcpFailure));
+  let reservation = yield* load;
 
-  yield* reconcileSuiteTasks(scope, threadId, delegations, orchestrator).pipe(Effect.ignore);
+  // Old requests may be looked up from the same authenticated parent thread,
+  // but only the Run that originally reserved an intent may submit it.
+  if (reservation?.state === "pending") {
+    yield* recovery.reconcileKey(reservation.key).pipe(Effect.mapError(toMcpFailure));
+    reservation = yield* load;
+  }
+  if (reservation?.taskId != null) {
+    return { memberKey: reservation.memberKey, taskId: reservation.taskId };
+  }
+  if (reservation?.state === "failed") {
+    return yield* new OrchestratorMcpFailure({
+      code: "orchestration_error",
+      message: "This Suite delegation was not accepted and will not be started.",
+    });
+  }
 
-  const prepared = yield* delegations
-    .prepare({ parentThreadId: threadId, ...input })
-    .pipe(Effect.mapError(toMcpFailure));
-  if (prepared.resumed && prepared.taskId !== null) {
-    return { memberKey: prepared.member.memberKey, taskId: prepared.taskId };
+  if (reservation === null || reservation.canSubmit) {
+    const parentRunId = yield* orchestrator.resolveSuiteParentRun(scope);
+    if (reservation === null) {
+      yield* recovery.reconcile(scope.thread.threadId).pipe(Effect.mapError(toMcpFailure));
+      reservation = yield* delegations
+        .prepare({ ...request, parentRunId })
+        .pipe(Effect.mapError(toMcpFailure));
+    }
+    const prepared = yield* delegations
+      .claimSubmission(reservation.key, parentRunId)
+      .pipe(Effect.mapError(toMcpFailure));
+    if (prepared !== null) {
+      const outcome = yield* orchestrator
+        .delegateTaskWithCommand(
+          scope,
+          prepared.nativeInput,
+          prepared.commandId,
+          prepared.parentRunId,
+        )
+        .pipe(
+          Effect.provideService(
+            SuiteDelegationService.SuiteDelegationSubmissionLease,
+            prepared.token,
+          ),
+          Effect.result,
+        );
+      yield* recovery
+        .reconcileSubmission(prepared, outcome._tag === "Failure")
+        .pipe(Effect.mapError(toMcpFailure));
+    }
+    reservation = yield* load;
+    if (reservation?.taskId != null) {
+      return { memberKey: reservation.memberKey, taskId: reservation.taskId };
+    }
   }
-  const outcome = yield* orchestrator
-    .delegateTaskWithCommand(scope, prepared.nativeInput, CommandId.make(prepared.commandId))
-    .pipe(Effect.result);
-  if (outcome._tag === "Failure") {
-    yield* delegations.markFailed(prepared.key, outcome.failure.code).pipe(Effect.ignore);
-    return yield* outcome.failure;
-  }
-  yield* delegations
-    .markSent(prepared.key, outcome.success.taskId)
-    .pipe(Effect.mapError(toMcpFailure));
-  return {
-    memberKey: prepared.member.memberKey,
-    taskId: outcome.success.taskId,
-  };
+
+  return yield* new OrchestratorMcpFailure({
+    code: "orchestration_error",
+    message:
+      reservation?.state === "failed"
+        ? "This Suite delegation was not accepted and will not be started."
+        : "The Suite delegation has no confirmed task yet. Retry with the same clientRequestId to recover its outcome.",
+  });
 });
 
 export const suiteLayer = McpToolAccess.toLayer(LinxSuiteToolkit, {

@@ -81,6 +81,8 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
     readonly endpoint: string;
     readonly authMode: "none" | "bearer" | "keep";
     readonly bearerToken: string;
+    readonly savedReadOnlyTools?: string;
+    readonly readOnlyTools?: string | undefined;
   }>({ name: "", endpoint: "", authMode: "none", bearerToken: "" });
   const [connectionTools, setConnectionTools] = useState<ReadonlyArray<string>>([]);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -178,61 +180,55 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
     }
     setPending("save");
     setError(null);
-    try {
-      const content = {
-        title: form.title.trim(),
-        persona: form.persona,
-        references: loaded?.references ?? [],
-        skillSelection: form.skills,
-        mcpGrants: form.grants,
-      };
-      const result = await runSave({
-        environmentId,
-        input:
-          loaded === null || loaded === undefined
-            ? content
-            : {
-                ...content,
-                expertId: loaded.expertId,
-                expectedRevision: loaded.currentRevision,
-              },
-      });
-      const failure = errorText(result);
-      if (failure !== null) {
-        setError(failure);
-        return;
-      }
-      setCreating(false);
-      setEdit(null);
-      if (result._tag === "Success") {
-        setSelectedId(result.value.expertId);
-      }
-      definitions.refresh();
-      detail.refresh();
-    } finally {
-      setPending(null);
+    const content = {
+      title: form.title.trim(),
+      persona: form.persona,
+      references: loaded?.references ?? [],
+      skillSelection: form.skills,
+      mcpGrants: form.grants,
+    };
+    const result = await runSave({
+      environmentId,
+      input:
+        loaded === null || loaded === undefined
+          ? content
+          : {
+              ...content,
+              expertId: loaded.expertId,
+              expectedRevision: loaded.currentRevision,
+            },
+    });
+    setPending(null);
+    const failure = errorText(result);
+    if (failure !== null) {
+      setError(failure);
+      return;
     }
+    setCreating(false);
+    setEdit(null);
+    if (result._tag === "Success") {
+      setSelectedId(result.value.expertId);
+    }
+    definitions.refresh();
+    detail.refresh();
   };
 
   const archive = async () => {
     if (!canManage || loaded === null || pending !== null) return;
     setPending("archive");
     setError(null);
-    try {
-      const result = await runArchive({
-        environmentId,
-        input: { expertId: loaded.expertId, expectedRevision: loaded.currentRevision },
-      });
-      const failure = errorText(result);
-      if (failure !== null) {
-        setError(failure);
-        return;
-      }
-      definitions.refresh();
-      detail.refresh();
-    } finally {
-      setPending(null);
+    const result = await runArchive({
+      environmentId,
+      input: { expertId: loaded.expertId, expectedRevision: loaded.currentRevision },
+    });
+    setPending(null);
+    const failure = errorText(result);
+    if (failure !== null) {
+      setError(failure);
+      return;
     }
+    definitions.refresh();
+    detail.refresh();
   };
 
   const importPackage = async () => {
@@ -244,39 +240,33 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
     }
     setPending("import");
     setError(null);
-    try {
-      const result = await runImport({ environmentId, input: { path } });
-      const failure = errorText(result);
-      if (failure !== null) {
-        setError(failure);
-        return;
-      }
-      setSkillPath("");
-      skills.refresh();
-    } finally {
-      setPending(null);
+    const result = await runImport({ environmentId, input: { path } });
+    setPending(null);
+    const failure = errorText(result);
+    if (failure !== null) {
+      setError(failure);
+      return;
     }
+    setSkillPath("");
+    skills.refresh();
   };
 
   const archivePackage = async (packageId: string, expectedRevision: number) => {
     if (!canManage || pending !== null) return;
     setPending(`archive-skill:${packageId}`);
     setError(null);
-    try {
-      const result = await runArchiveSkill({
-        environmentId,
-        input: { packageId, expectedRevision },
-      });
-      const failure = errorText(result);
-      if (failure !== null) {
-        setError(failure);
-        return;
-      }
-      skills.refresh();
-      definitions.refresh();
-    } finally {
-      setPending(null);
+    const result = await runArchiveSkill({
+      environmentId,
+      input: { packageId, expectedRevision },
+    });
+    setPending(null);
+    const failure = errorText(result);
+    if (failure !== null) {
+      setError(failure);
+      return;
     }
+    skills.refresh();
+    definitions.refresh();
   };
 
   const testConnectionEndpoint = async () => {
@@ -292,28 +282,25 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
     }
     setPending("connection-test");
     setConnectionError(null);
-    try {
-      const result = await runTestConnection({
-        environmentId,
-        input: {
-          endpoint,
-          authMode: connectionForm.authMode === "bearer" ? "bearer" : "none",
-          ...(connectionForm.authMode === "bearer"
-            ? { bearerToken: connectionForm.bearerToken.trim() }
-            : {}),
-        },
-      });
-      const failure = errorText(result);
-      if (failure !== null) {
-        setConnectionError(failure);
-        return;
-      }
-      setConnectionTools(
-        result._tag === "Success" ? result.value.tools.map((tool) => tool.name) : [],
-      );
-    } finally {
-      setPending(null);
+    const result = await runTestConnection({
+      environmentId,
+      input: {
+        endpoint,
+        authMode: connectionForm.authMode === "bearer" ? "bearer" : "none",
+        ...(connectionForm.authMode === "bearer"
+          ? { bearerToken: connectionForm.bearerToken.trim() }
+          : {}),
+      },
+    });
+    setPending(null);
+    const failure = errorText(result);
+    if (failure !== null) {
+      setConnectionError(failure);
+      return;
     }
+    setConnectionTools(
+      result._tag === "Success" ? result.value.tools.map((tool) => tool.name) : [],
+    );
   };
 
   const saveConnectionDetails = async () => {
@@ -330,36 +317,41 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
     }
     setPending("connection-save");
     setConnectionError(null);
-    try {
-      const result = await runSaveConnection({
-        environmentId,
-        input: {
-          ...(connectionForm.connectionId === undefined
-            ? {}
-            : {
-                connectionId: connectionForm.connectionId,
-                expectedRevision: connectionForm.expectedRevision,
-              }),
-          name,
-          endpoint,
-          authMode: connectionForm.authMode,
-          ...(connectionForm.authMode === "bearer"
-            ? { bearerToken: connectionForm.bearerToken.trim() }
-            : {}),
-        },
-      });
-      const failure = errorText(result);
-      if (failure !== null) {
-        setConnectionError(failure);
-        return;
-      }
-      setConnectionForm({ name: "", endpoint: "", authMode: "none", bearerToken: "" });
-      setConnectionTools([]);
-      connections.refresh();
-      definitions.refresh();
-    } finally {
-      setPending(null);
+    const result = await runSaveConnection({
+      environmentId,
+      input: {
+        ...(connectionForm.connectionId === undefined
+          ? {}
+          : {
+              connectionId: connectionForm.connectionId,
+              expectedRevision: connectionForm.expectedRevision,
+            }),
+        name,
+        endpoint,
+        authMode: connectionForm.authMode,
+        ...(connectionForm.readOnlyTools === undefined
+          ? {}
+          : {
+              readOnlyTools: connectionForm.readOnlyTools
+                .split(",")
+                .map((tool) => tool.trim())
+                .filter(Boolean),
+            }),
+        ...(connectionForm.authMode === "bearer"
+          ? { bearerToken: connectionForm.bearerToken.trim() }
+          : {}),
+      },
+    });
+    setPending(null);
+    const failure = errorText(result);
+    if (failure !== null) {
+      setConnectionError(failure);
+      return;
     }
+    setConnectionForm({ name: "", endpoint: "", authMode: "none", bearerToken: "" });
+    setConnectionTools([]);
+    connections.refresh();
+    definitions.refresh();
   };
 
   const editConnection = (connection: LinxMcpConnectionSummary) => {
@@ -372,6 +364,7 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
       endpoint: connection.endpoint,
       authMode: connection.authKind === "bearer" ? "keep" : "none",
       bearerToken: "",
+      savedReadOnlyTools: connection.readOnlyTools?.join(", ") ?? "",
     });
   };
 
@@ -379,23 +372,20 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
     if (!canManage || pending !== null) return;
     setPending(`connection-disable:${connection.connectionId}`);
     setConnectionError(null);
-    try {
-      const result = await runDisableConnection({
-        environmentId,
-        input: {
-          connectionId: connection.connectionId,
-          expectedRevision: connection.currentRevision,
-        },
-      });
-      const failure = errorText(result);
-      if (failure !== null) {
-        setConnectionError(failure);
-        return;
-      }
-      connections.refresh();
-    } finally {
-      setPending(null);
+    const result = await runDisableConnection({
+      environmentId,
+      input: {
+        connectionId: connection.connectionId,
+        expectedRevision: connection.currentRevision,
+      },
+    });
+    setPending(null);
+    const failure = errorText(result);
+    if (failure !== null) {
+      setConnectionError(failure);
+      return;
     }
+    connections.refresh();
   };
 
   return (
@@ -628,10 +618,24 @@ export function LinxExpertsSettings({ environmentId }: { environmentId: Environm
               value={connectionForm.endpoint}
               disabled={!canManage || pending !== null}
               onChange={(event) =>
-                setConnectionForm((current) => ({ ...current, endpoint: event.target.value }))
+                setConnectionForm((current) => ({
+                  ...current,
+                  endpoint: event.target.value,
+                  readOnlyTools: undefined,
+                  savedReadOnlyTools: "",
+                }))
               }
             />
           </div>
+          <Input
+            aria-label={gt("Trusted read-only Suite tools")}
+            placeholder={gt("Trusted read-only Suite tools (comma-separated names)")}
+            value={connectionForm.readOnlyTools ?? connectionForm.savedReadOnlyTools ?? ""}
+            disabled={!canManage || pending !== null}
+            onChange={(event) =>
+              setConnectionForm((current) => ({ ...current, readOnlyTools: event.target.value }))
+            }
+          />
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={connectionForm.authMode}

@@ -53,6 +53,7 @@ it("keeps the Expert launch request on retry and returns to native launch when d
     Effect.succeed([
       {
         expertId: "reviewer",
+        title: "reviewer",
         snapshotId: "snap-frozen-reviewer",
         revision: 3,
         contentHash: "a".repeat(64),

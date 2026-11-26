@@ -885,6 +885,7 @@ export function ThreadRelationshipsPanel(props: {
         progress={agent.progress}
         parentThread={currentThread ?? undefined}
         childThread={node?.thread ?? undefined}
+        childThreadRef={scopeThreadRef(props.environmentId, threadId)}
         parentProject={currentProject}
         childProject={project}
       />

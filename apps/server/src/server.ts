@@ -96,6 +96,9 @@ import * as ProjectSettingsOverrideSweep from "./provider/ProjectSettingsOverrid
 import * as TerminalManager from "./terminal/Manager.ts";
 import * as McpHttpServer from "./mcp/McpHttpServer.ts";
 import * as LinxServices from "./linx/LinxServices.ts";
+import * as LinxMcpServices from "./linx/LinxMcpServices.ts";
+import * as SuiteDelegationRecovery from "./linx/suite/SuiteDelegationRecovery.ts";
+import * as CommandReceiptStore from "./orchestration-v2/CommandReceiptStore.ts";
 import * as PeerForwarding from "./peer/PeerForwarding.ts";
 import * as RemoteDelegation from "./peer/RemoteDelegation.ts";
 import * as PeerClientPairing from "./peer/PeerClientPairing.ts";
@@ -977,6 +980,12 @@ const layerMakeServer = Layer.unwrap(
     const ownership = yield* ServerOwnership.acquireServerOwnership(config.serverRuntimeStatePath);
     const activation = yield* Deferred.make<void>();
     const awaitActivation = Deferred.await(activation);
+    const layerSuiteRecovery = Layer.effectDiscard(
+      Effect.gen(function* () {
+        const recovery = yield* SuiteDelegationRecovery.SuiteDelegationRecovery;
+        yield* awaitActivation.pipe(Effect.andThen(recovery.run), Effect.forkScoped);
+      }),
+    );
     const layerActivation = Layer.succeed(ServerActivation.ServerActivation, awaitActivation);
     const runtimeStateParked = yield* Deferred.make<void>();
     const tailscaleParked = yield* Deferred.make<void>();
@@ -1413,11 +1422,23 @@ const layerMakeServer = Layer.unwrap(
       layerRuntimeState.pipe(Layer.provide(layerLauncher)),
       layerTailscaleServe,
       layerCloudDesiredLinkReconcile,
+      layerSuiteRecovery,
       HeapSnapshot.layer,
     );
 
     return layerServerApplication.pipe(
       Layer.provide(CloudLink.layer.pipe(Layer.provideMerge(ConnectReachability.layer))),
+      Layer.provide(
+        SuiteDelegationRecovery.layer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              LinxMcpServices.layer,
+              ProjectionStoreV2.layer,
+              CommandReceiptStore.layerFromApplicationReceipts,
+            ),
+          ),
+        ),
+      ),
       Layer.provideMerge(layerRuntimeServices),
       Layer.provideMerge(
         McpSessionRegistry.layer.pipe(

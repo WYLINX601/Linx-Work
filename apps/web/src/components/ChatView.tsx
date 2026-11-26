@@ -356,6 +356,7 @@ import { useIncrementalTimelineEntries } from "../hooks/useIncrementalTimelineEn
 import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./chat/ComposerBannerStack";
 import { LinxExpertPicker } from "./chat/LinxExpertPicker";
+import { LinxThreadBindingBadge } from "./chat/LinxThreadBindingBadge";
 import { LinxSuitePicker } from "./chat/LinxSuitePicker";
 import { modelFallbackBannerItem } from "./chat/ComposerUsageLimits";
 import { ComposerSurface } from "./chat/ComposerSurface";
@@ -3563,7 +3564,15 @@ export default function ChatView(props: ChatViewProps) {
         inert={rightPanelMaximized}
         onMouseUp={preventMiddleClickPasteOutsideEditable}
       >
-        {embedded ? null : (
+        {embedded ? (
+          sideThreadKind === "subagent" && activeThreadRef !== null ? (
+            <LinxThreadBindingBadge
+              threadRef={activeThreadRef}
+              className="mx-3 mt-2 self-start"
+              memberDetail
+            />
+          ) : null
+        ) : (
           <header
             ref={threadPanelPopoverAnchorRef}
             data-chat-header

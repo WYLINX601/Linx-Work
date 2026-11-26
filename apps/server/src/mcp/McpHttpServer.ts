@@ -61,6 +61,7 @@ import { compactT3McpToolOutput } from "@t3tools/shared/toolOutput";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import { MCP_TOOL_EXPOSURE_HEADER } from "@t3tools/provider-core/server/mcpSession";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
+import { SuiteExecutionPolicy, suiteThreadRole } from "../linx/suite/SuiteExecutionPolicy.ts";
 import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
 import * as PreviewControlsHandlers from "./toolkits/previewControls/handlers.ts";
 import * as FeedbackHandlers from "./toolkits/feedback/handlers.ts";
@@ -1465,7 +1466,7 @@ export const layerLinxMcpToolkit = toolkitRegistration(
 const layerLinxSuiteToolkit = toolkitRegistration(
   LinxSuiteToolkit,
   LinxExpertContextHandlers.suiteLayer,
-).pipe(Layer.provide(LinxMcpServices.layer), Layer.provide(orchestratorServiceLayer));
+).pipe(Layer.provide(orchestratorServiceLayer), Layer.provide(LinxMcpServices.layer));
 
 export const layerProjectRegistration = toolkitRegistration(ProjectToolkit, ProjectHandlers.layer);
 
@@ -1526,6 +1527,63 @@ export const layerInProcessMcpServer = McpServer.middleware<{
   { global: true },
 ).pipe(Layer.provideMerge(McpServer.McpServer.layer));
 
+const suiteContextTools = {
+  linx_expert_context: true,
+  linx_skill_search: true,
+  linx_skill_read: true,
+  linx_mcp_list_tools: true,
+  linx_mcp_call: true,
+};
+const suiteLeadTools = {
+  linx_suite_members: true,
+  linx_suite_delegate: true,
+  task_status: true,
+  task_cancel: true,
+};
+
+const suiteToolAllowed = Effect.fnUntraced(function* (name: string, checkIdentity = false) {
+  const caller = Option.getOrUndefined(
+    yield* Effect.serviceOption(McpInvocationContext.McpInvocationContext),
+  )?.thread;
+  if (caller === undefined) return true;
+  const role = suiteThreadRole(caller.threadId);
+  if (role === undefined) return true;
+  if (
+    !Object.hasOwn(suiteContextTools, name) &&
+    !(role === "lead" && Object.hasOwn(suiteLeadTools, name))
+  )
+    return false;
+  if (!checkIdentity) return true;
+  const policy = yield* Effect.serviceOption(SuiteExecutionPolicy);
+  return (
+    Option.isSome(policy) &&
+    (yield* policy.value.validateCaller(caller.threadId, caller.providerInstanceId).pipe(
+      Effect.as(true),
+      Effect.orElseSucceed(() => false),
+    ))
+  );
+});
+
+const layerSuiteToolPolicy = Layer.merge(
+  McpServer.visibility(
+    ({ method, target }) =>
+      method === "tools/list" ? suiteToolAllowed(target) : Effect.succeed(true),
+    { global: true },
+  ),
+  McpServer.middleware(
+    (handle, { method, target }) =>
+      Effect.gen(function* () {
+        if (method === "tools/call" && !(yield* suiteToolAllowed(target, true))) {
+          return yield* new McpSchema.Forbidden({
+            message: "This tool is not available to the Suite thread.",
+          });
+        }
+        return yield* handle;
+      }),
+    { global: true },
+  ),
+);
+
 export const layerMcpTransport = <RA, RE, RR>(registrations: Layer.Layer<RA, RE, RR>) =>
   McpServer.layerHttp({
     name: "T3 Code",
@@ -1533,7 +1591,7 @@ export const layerMcpTransport = <RA, RE, RR>(registrations: Layer.Layer<RA, RE,
     path: MCP_HTTP_PATH,
     protocols: mcpProtocols,
     allowSessionTermination: true,
-    registrations,
+    registrations: Layer.merge(registrations, layerSuiteToolPolicy),
   }).pipe(Layer.provide(layerMcpAuthMiddleware));
 
 /** Every tool the T3 MCP server advertises. AgentContextBudget.test.ts measures this set. */

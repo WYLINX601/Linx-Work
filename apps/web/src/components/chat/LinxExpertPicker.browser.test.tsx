@@ -23,6 +23,7 @@ vi.mock(import("../../state/query"), async (original) => ({
       ? [
           {
             expertId: "reviewer",
+            title: "reviewer",
             snapshotId: "snap-fixed",
             revision: 12,
             contentHash: "a".repeat(64),

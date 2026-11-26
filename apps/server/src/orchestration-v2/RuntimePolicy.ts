@@ -19,6 +19,11 @@ import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter"
 import * as ServerSettings from "../serverSettings.ts";
 import * as WorkspaceFolders from "../workspace/WorkspaceFolders.ts";
 import * as ProjectStore from "./ProjectStore.ts";
+import {
+  resolveSuitePolicy,
+  SuiteExecutionPolicy,
+  SuiteExecutionRefused,
+} from "../linx/suite/SuiteExecutionPolicy.ts";
 
 export class RuntimePolicyResolveError extends Schema.TaggedError<RuntimePolicyResolveError>()(
   "RuntimePolicyResolveError",
@@ -57,6 +62,7 @@ export const isRuntimePolicyAboveCeilingError = Schema.is(RuntimePolicyAboveCeil
 export const RuntimePolicyV2Error = Schema.Union([
   RuntimePolicyResolveError,
   RuntimePolicyAboveCeilingError,
+  SuiteExecutionRefused,
 ]);
 export type RuntimePolicyV2Error = typeof RuntimePolicyV2Error.Type;
 
@@ -143,6 +149,7 @@ export const layerFromProjectStore: Layer.Layer<
     const providerInstances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
     // The same ceiling the orchestrator enforces, fixed for the server's life.
     const { managedPolicy } = yield* ServerSettings.ServerSettingsService;
+    const suitePolicy = yield* Effect.serviceOption(SuiteExecutionPolicy);
     const maxRuntimeMode = managedPolicy?.limits?.maxRuntimeMode;
     return RuntimePolicyV2.of({
       resolve: Effect.fn("RuntimePolicyV2.resolve")(function* (input) {
@@ -190,13 +197,14 @@ export const layerFromProjectStore: Layer.Layer<
               ),
             ),
           );
-        return ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+        const base = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
           runtimeMode: providerRuntimeMode(input.thread.runtimeMode, supportedRuntimeModes),
           interactionMode: input.thread.interactionMode,
           cwd,
           ...(maxRuntimeMode === undefined ? {} : { maxRuntimeMode }),
           ...(workspace === undefined || workspace.folders.length === 0 ? {} : { workspace }),
         });
+        return yield* resolveSuitePolicy(suitePolicy, input.thread, input.modelSelection, base);
       }),
     });
   }),

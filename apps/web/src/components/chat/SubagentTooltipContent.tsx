@@ -6,6 +6,7 @@ import type {
   ProviderDriverKind,
   ProviderInstanceId,
   OrchestrationV2Subagent,
+  ScopedThreadRef,
 } from "@t3tools/contracts";
 import {
   resolveSubagentMetadata,
@@ -27,6 +28,7 @@ import {
 } from "lucide-react";
 import { ThreadHoverCard } from "../ThreadHoverCard";
 import { MiddleTruncate } from "../ui/middle-truncate";
+import { LinxThreadBindingBadge } from "./LinxThreadBindingBadge";
 import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 import { cn } from "~/lib/utils";
 import { deriveProviderInstanceEntries, shouldShowInstanceBadge } from "../../providerInstances";
@@ -41,6 +43,7 @@ export function SubagentTooltipContent(props: {
   providers?: ReadonlyArray<ServerProvider> | undefined;
   driver?: ProviderDriverKind | undefined;
   elapsed?: ReactNode;
+  childThreadRef?: ScopedThreadRef | undefined;
   parentThread?: Pick<OrchestrationV2ThreadShell, "projectId" | "worktreePath"> | undefined;
   childThread?:
     | Pick<OrchestrationV2ThreadShell, "branch" | "worktreePath" | "modelSelection">
@@ -197,6 +200,9 @@ export function SubagentTooltipContent(props: {
         </span>
         {props.elapsed}
       </div>
+      {props.origin === "app_owned" && props.childThreadRef ? (
+        <LinxThreadBindingBadge threadRef={props.childThreadRef} memberDetail />
+      ) : null}
       {metadata.map(({ label, value }, index) => {
         const Icon =
           props.childThread?.branch && !(hasProjectRow && index === 0) ? GitBranchIcon : FolderIcon;

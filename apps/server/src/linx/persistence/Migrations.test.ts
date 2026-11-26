@@ -48,7 +48,7 @@ it.effect("records the Linx schema version once", () => {
     const rows = yield* sql<{ readonly count: number }>`
       SELECT COUNT(*) AS count FROM linx_migrations
     `;
-    assert.equal(rows[0]?.count, 5);
+    assert.equal(rows[0]?.count, 6);
   }).pipe(Effect.provide(layer));
 });
 

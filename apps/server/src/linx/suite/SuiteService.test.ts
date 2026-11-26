@@ -62,6 +62,9 @@ it.effect("saves a suite, freezes members, and appends revisions", () =>
       assert.equal(frozen.content.lead.expertId, "lead");
       assert.equal(frozen.content.members.length, 2);
       assert.match(frozen.contentHash, /^[0-9a-f]{64}$/);
+      assert.equal(frozen.content.policy.sandbox, "read-only");
+      assert.equal(frozen.content.policy.workspaceIsolation, "shared");
+      assert.equal(frozen.content.policy.approval, "never");
 
       const updated = yield* suites.save({
         suiteId: saved.suiteId,
@@ -125,6 +128,32 @@ it.effect("rejects duplicate member keys and missing snapshots", () =>
         }),
       );
       assert.equal(missing._tag, "LinxDependencyMissingError");
+    }),
+  ),
+);
+
+it.effect("rejects a writable suite that would share the parent checkout", () =>
+  withServices(() =>
+    Effect.gen(function* () {
+      const snapshots = yield* ExpertSnapshotService;
+      const suites = yield* SuiteService;
+      yield* snapshots.create(snapshot("lead"));
+      yield* snapshots.create(snapshot("member"));
+      const rejected = yield* Effect.flip(
+        suites.save({
+          name: "Unsafe checkout",
+          leadExpertId: "lead",
+          leadExpertRevision: 1,
+          members: [{ memberKey: "member", expertId: "member", revision: 1 }],
+          policy: {
+            maxActiveDelegations: 1,
+            sandbox: "workspace-write",
+            workspaceIsolation: "shared",
+          },
+        }),
+      );
+      assert.equal(rejected._tag, "LinxSuitePolicyError");
+      assert.deepEqual(yield* suites.list(), []);
     }),
   ),
 );

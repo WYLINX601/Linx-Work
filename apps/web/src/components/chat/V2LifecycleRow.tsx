@@ -599,9 +599,8 @@ function SubagentTimelineTooltip(
   const providers =
     useAtomValue(serverEnvironment.providersValueAtom(environmentId)) ?? EMPTY_SERVER_PROVIDERS;
   const parent = useThreadShell(props.parentRef)?.source;
-  const child = useThreadShell(
-    props.threadId ? scopeThreadRef(environmentId, props.threadId) : null,
-  )?.source;
+  const childThreadRef = props.threadId ? scopeThreadRef(environmentId, props.threadId) : null;
+  const child = useThreadShell(childThreadRef)?.source;
   const parentProject = useProject(
     parent ? scopeProjectRef(environmentId, parent.projectId) : null,
   );
@@ -622,6 +621,7 @@ function SubagentTimelineTooltip(
       progress={props.progress}
       parentThread={parent}
       childThread={child}
+      childThreadRef={childThreadRef ?? undefined}
       parentProject={parentProject ?? undefined}
       childProject={childProject ?? undefined}
     />

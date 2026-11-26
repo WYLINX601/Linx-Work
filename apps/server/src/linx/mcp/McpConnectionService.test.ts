@@ -190,6 +190,44 @@ it.live("saves a frozen tool catalog, revises it, and disables it", () =>
   }).pipe(Effect.scoped),
 );
 
+it.live("does not expand frozen read-only grants and revokes them for every revision", () =>
+  Effect.gen(function* () {
+    const server = yield* startServer(ECHO_TOOLS);
+    return yield* withService(() =>
+      Effect.gen(function* () {
+        const connections = yield* McpConnectionService;
+        const input = { name: "Test MCP", endpoint: server.endpoint, authMode: "none" } as const;
+        const prior = yield* connections.save(input);
+        const classified = yield* connections.save({
+          ...input,
+          connectionId: prior.connectionId,
+          expectedRevision: prior.currentRevision,
+          readOnlyTools: ["echo"],
+        });
+        assert.equal(classified.currentRevision, 2);
+        assert.deepEqual(
+          (yield* connections.resolveRevision(prior.connectionId, 1))?.readOnlyTools,
+          [],
+        );
+        assert.deepEqual(
+          (yield* connections.resolveRevision(prior.connectionId, 2))?.readOnlyTools,
+          ["echo"],
+        );
+        yield* connections.save({
+          ...input,
+          connectionId: prior.connectionId,
+          expectedRevision: classified.currentRevision,
+          readOnlyTools: [],
+        });
+        assert.deepEqual(
+          (yield* connections.resolveRevision(prior.connectionId, 2))?.readOnlyTools,
+          [],
+        );
+      }),
+    );
+  }).pipe(Effect.scoped),
+);
+
 it.live("rejects non-loopback http and credentials in the endpoint", () =>
   withService(() =>
     Effect.gen(function* () {

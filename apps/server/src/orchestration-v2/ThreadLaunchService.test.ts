@@ -60,6 +60,7 @@ import * as ProjectService from "../project/ProjectService.ts";
 import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as ProviderRegistryMock from "../provider/testUtils/providerRegistryMock.ts";
+import { ProviderInstanceRegistry } from "../provider/ProviderInstanceRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ScheduledTasks from "../scheduledTasks/ScheduledTaskService.ts";
 import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
@@ -2761,6 +2762,7 @@ it.effect(
     );
     const services = LinxServices.layer.pipe(
       Layer.provide(lossyLaunch),
+      Layer.provide(Layer.mock(ProviderInstanceRegistry)({})),
       Layer.provideMerge(dependencies),
     );
     return Effect.gen(function* () {

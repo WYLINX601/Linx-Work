@@ -35,6 +35,8 @@ const mapError = (error: { readonly _tag: string }): LinxFailure => {
       return failure("snapshot_integrity", "A Linx snapshot failed its integrity check.");
     case "LinxResourcePathError":
       return failure("invalid_request", "A Linx resource path was rejected.");
+    case "LinxSuitePolicyError":
+      return failure("invalid_request", "The suite execution policy is not supported.");
     case "LinxIdempotencyConflictError":
       return failure("idempotency_conflict", "This request was already used with different input.");
     default:
@@ -146,6 +148,24 @@ export const layer = LinxWsRpcGroup.toLayer(
             failure("snapshot_missing", "The bound expert snapshot does not exist."),
           );
         }
+        const suite =
+          binding.suiteSnapshotId === null
+            ? null
+            : yield* mapped(suites.getSnapshot(binding.suiteSnapshotId));
+        const member =
+          binding.memberKey === null
+            ? undefined
+            : suite?.content.members.find((candidate) => candidate.memberKey === binding.memberKey);
+        if (
+          binding.suiteSnapshotId !== null &&
+          (suite === null ||
+            (binding.memberKey !== null && member?.snapshotId !== binding.snapshotId) ||
+            (binding.memberKey === null && suite.content.lead.snapshotId !== binding.snapshotId))
+        ) {
+          return yield* Effect.fail(
+            failure("snapshot_integrity", "The bound suite could not be verified."),
+          );
+        }
         return {
           threadId,
           projectId: ProjectId.make(binding.projectId),
@@ -153,6 +173,17 @@ export const layer = LinxWsRpcGroup.toLayer(
           expertId: snapshot.expertId,
           revision: snapshot.revision,
           contentHash: snapshot.contentHash,
+          ...(member === undefined ? {} : { expertTitle: member.title }),
+          ...(suite === null
+            ? {}
+            : {
+                suite: {
+                  name: suite.content.name ?? suite.content.suiteId,
+                  revision: suite.content.suiteRevision,
+                  role: binding.memberKey === null ? ("lead" as const) : ("member" as const),
+                  ...(member === undefined ? {} : { memberTitle: member.title }),
+                },
+              }),
           createdAt: binding.createdAt,
         };
       }),

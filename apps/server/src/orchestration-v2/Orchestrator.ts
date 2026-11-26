@@ -210,6 +210,12 @@ import { ProviderSwitchServiceV2 } from "./ProviderSwitchService.ts";
 import { isAutomaticCompletionRun, queuedRunsInDeliveryOrder } from "./QueuedRunOrder.ts";
 import { isRuntimePolicyAboveCeilingError, RuntimePolicyV2 } from "./RuntimePolicy.ts";
 import {
+  SuiteDelegationAuthority,
+  SuiteProvisioningThread,
+  suiteDelegateIdPrefix,
+  suiteThreadRole,
+} from "../linx/suite/SuiteExecutionPolicy.ts";
+import {
   endOrphanedNativeSubagent,
   endRunlessRootTurns,
   makeSubagentChildThread,
@@ -16532,6 +16538,50 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       "orchestration_v2.thread_id": commandThreadId(command),
     });
 
+    const threadId = commandThreadId(command);
+    const role = suiteThreadRole(threadId);
+    const suiteRefusal = () =>
+      new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: "This command is not authorized by the frozen Suite policy.",
+      });
+    if (
+      command.type === "delegated_task.request" &&
+      (role !== undefined || command.commandId.startsWith(suiteDelegateIdPrefix))
+    ) {
+      const authorized = yield* SuiteDelegationAuthority;
+      if (
+        role !== "lead" ||
+        !command.commandId.startsWith(suiteDelegateIdPrefix) ||
+        authorized?.commandId !== command.commandId ||
+        authorized.parentThreadId !== command.parentThreadId ||
+        authorized.parentRunId !== command.parentRunId
+      )
+        return yield* suiteRefusal();
+    }
+    if (
+      (command.type === "thread.fork" || command.type === "thread.merge_back") &&
+      (role !== undefined || suiteThreadRole(command.sourceThreadId) !== undefined)
+    ) {
+      return yield* suiteRefusal();
+    }
+    if (role !== undefined) {
+      if (
+        command.type === "provider.switch" ||
+        command.type === "thread.model-selection.set" ||
+        command.type === "thread.project.adopt-folder" ||
+        command.type === "thread.guest-share.open" ||
+        (role === "member" && command.type === "thread.runtime-mode.set")
+      )
+        return yield* suiteRefusal();
+      if (
+        command.type === "thread.metadata.update" &&
+        command.worktreePath !== undefined &&
+        (yield* SuiteProvisioningThread) !== threadId
+      )
+        return yield* suiteRefusal();
+    }
     const existingReceipt = yield* commandReceipts.getByCommandId(command.commandId).pipe(
       Effect.mapError(
         (cause) =>

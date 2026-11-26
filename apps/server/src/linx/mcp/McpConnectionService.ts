@@ -48,6 +48,10 @@ interface RevisionRow {
   readonly created_at: string;
 }
 
+interface StoredMcpTool extends ExternalMcpTool {
+  readonly readOnly?: true;
+}
+
 export interface ResolvedMcpConnection {
   readonly connectionId: string;
   readonly name: string;
@@ -57,6 +61,7 @@ export interface ResolvedMcpConnection {
   readonly secretRef: string | null;
   readonly disabled: boolean;
   readonly tools: ReadonlyArray<ExternalMcpTool>;
+  readonly readOnlyTools: ReadonlyArray<string>;
 }
 
 const sha256 = (value: string): string =>
@@ -150,8 +155,8 @@ const validateMcpEndpoint = Effect.fn("validateMcpEndpoint")(function* (raw: str
   return `${url.protocol}//${url.host}${path}`;
 });
 
-const toTools = (row: RevisionRow): ReadonlyArray<ExternalMcpTool> =>
-  JSON.parse(row.tools_json) as ReadonlyArray<ExternalMcpTool>;
+const toTools = (row: RevisionRow): ReadonlyArray<StoredMcpTool> =>
+  JSON.parse(row.tools_json) as ReadonlyArray<StoredMcpTool>;
 
 const toContractTools = (tools: ReadonlyArray<ExternalMcpTool>): ReadonlyArray<LinxMcpTool> =>
   tools.map((tool) => ({
@@ -169,6 +174,9 @@ const summarize = (row: ConnectionRow, revision: RevisionRow): LinxMcpConnection
   disabled: row.disabled_at !== null,
   updatedAt: row.updated_at,
   toolCount: toTools(revision).length,
+  readOnlyTools: toTools(revision)
+    .filter((tool) => tool.readOnly === true)
+    .map((tool) => tool.name),
 });
 
 const detailFrom = (row: ConnectionRow, revision: RevisionRow): LinxMcpConnectionDetail => ({
@@ -178,7 +186,7 @@ const detailFrom = (row: ConnectionRow, revision: RevisionRow): LinxMcpConnectio
 
 const configHashFor = (
   endpoint: string,
-  tools: ReadonlyArray<ExternalMcpTool>,
+  tools: ReadonlyArray<StoredMcpTool>,
   authKind: "none" | "bearer",
   token: string | undefined,
 ): string =>
@@ -187,7 +195,11 @@ const configHashFor = (
       endpoint,
       authKind,
       secretHash: token === undefined ? null : sha256(token),
-      tools: tools.map((tool) => ({ name: tool.name, schemaHash: tool.schemaHash })),
+      tools: tools.map((tool) => ({
+        name: tool.name,
+        schemaHash: tool.schemaHash,
+        ...(tool.readOnly === true ? { readOnly: true } : {}),
+      })),
     }),
   );
 
@@ -403,8 +415,34 @@ export const layer = Layer.effect(
             : secrets.remove(auth.createdRef).pipe(Effect.ignore),
         ),
       );
-      const configHash = configHashFor(endpoint, catalog, auth.authKind, auth.token);
-      const toolsJson = JSON.stringify(catalog);
+      const explicitReadOnly =
+        input.readOnlyTools === undefined ? undefined : new Set(input.readOnlyTools);
+      if (
+        explicitReadOnly !== undefined &&
+        input.readOnlyTools?.some((name) => !catalog.some((tool) => tool.name === name))
+      ) {
+        if (auth.createdRef !== null) yield* secrets.remove(auth.createdRef).pipe(Effect.ignore);
+        return yield* new LinxDependencyMissingError({
+          entity: "mcp tool",
+          id: input.connectionId ?? "new",
+          category: "read-only-tool-missing",
+        });
+      }
+      const trusted =
+        currentRevision?.endpoint === endpoint
+          ? new Map(
+              toTools(currentRevision)
+                .filter((tool) => tool.readOnly === true)
+                .map((tool) => [tool.name, tool.schemaHash]),
+            )
+          : undefined;
+      const approved = catalog.map((tool): StoredMcpTool =>
+        (explicitReadOnly?.has(tool.name) ?? trusted?.get(tool.name) === tool.schemaHash)
+          ? { ...tool, readOnly: true }
+          : tool,
+      );
+      const configHash = configHashFor(endpoint, approved, auth.authKind, auth.token);
+      const toolsJson = JSON.stringify(approved);
 
       if (existing === undefined) {
         const connectionId = `mcp_${NodeCrypto.randomUUID().replaceAll("-", "")}`;
@@ -625,6 +663,19 @@ export const layer = Layer.effect(
       if (row === undefined) return null;
       const selected = (yield* selectRevision(connectionId, revision))[0];
       if (selected === undefined) return null;
+      const tools = toTools(selected);
+      const current =
+        selected.revision === row.current_revision
+          ? selected
+          : (yield* selectRevision(connectionId, row.current_revision))[0];
+      const liveReadOnly =
+        current?.endpoint === selected.endpoint
+          ? new Map(
+              toTools(current)
+                .filter((tool) => tool.readOnly === true)
+                .map((tool) => [tool.name, tool.schemaHash]),
+            )
+          : undefined;
       return {
         connectionId: row.connection_id,
         name: row.name,
@@ -633,7 +684,12 @@ export const layer = Layer.effect(
         authKind: selected.auth_kind,
         secretRef: selected.secret_ref,
         disabled: row.disabled_at !== null,
-        tools: toTools(selected),
+        tools,
+        readOnlyTools: tools
+          .filter(
+            (tool) => tool.readOnly === true && liveReadOnly?.get(tool.name) === tool.schemaHash,
+          )
+          .map((tool) => tool.name),
       } satisfies ResolvedMcpConnection;
     });
 

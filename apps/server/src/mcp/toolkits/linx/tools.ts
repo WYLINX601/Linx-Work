@@ -1,4 +1,8 @@
-import { OrchestratorMcpFailure } from "@t3tools/contracts";
+import {
+  LinxSuiteDelegateInput,
+  LinxSuiteDelegateResult,
+  OrchestratorMcpFailure,
+} from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import { McpSchema, Tool, Toolkit } from "effect/ai";
 
@@ -6,6 +10,7 @@ import * as ExpertSnapshotService from "../../../linx/expert/ExpertSnapshotServi
 import * as ExternalMcpClient from "../../../linx/mcp/ExternalMcpClient.ts";
 import * as McpConnectionService from "../../../linx/mcp/McpConnectionService.ts";
 import * as SecretStore from "../../../linx/secret/SecretStore.ts";
+import { SuiteDelegationRecovery } from "../../../linx/suite/SuiteDelegationRecovery.ts";
 import * as SuiteDelegationService from "../../../linx/suite/SuiteDelegationService.ts";
 import { OrchestratorMcpService } from "../../OrchestratorMcpService.ts";
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
@@ -204,7 +209,6 @@ export const LinxSuiteToolkit = Toolkit.make(
     dependencies: [
       McpInvocationContext.McpInvocationContext,
       SuiteDelegationService.SuiteDelegationService,
-      OrchestratorMcpService,
     ],
   })
     .annotate(Tool.Readonly, true)
@@ -212,27 +216,20 @@ export const LinxSuiteToolkit = Toolkit.make(
     .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients),
   Tool.make("linx_suite_delegate", {
     description:
-      "Delegate work to one frozen Suite member through T3 native delegation. Only a Suite Lead can call this.",
-    parameters: Schema.Struct({
-      memberKey: Schema.String,
-      clientRequestId: Schema.String,
-      objective: Schema.String,
-      acceptance: Schema.String,
-    }),
-    success: Schema.Struct({
-      memberKey: Schema.String,
-      taskId: Schema.String,
-    }),
+      "Suite Lead only: delegate to a frozen member. Retry with the same clientRequestId for the same task.",
+    parameters: LinxSuiteDelegateInput,
+    success: LinxSuiteDelegateResult,
     failure: OrchestratorMcpFailure,
     failureMode: "return",
     dependencies: [
       McpInvocationContext.McpInvocationContext,
       SuiteDelegationService.SuiteDelegationService,
       OrchestratorMcpService,
+      SuiteDelegationRecovery,
       ThreadManagementService.ThreadManagementService,
     ],
   })
     .annotate(Tool.Readonly, false)
-    .annotate(Tool.Idempotent, false)
+    .annotate(Tool.Idempotent, true)
     .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients),
 );

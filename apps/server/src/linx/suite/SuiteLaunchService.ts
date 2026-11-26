@@ -17,6 +17,12 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 
+import { ProviderInstanceRegistry } from "../../provider/ProviderInstanceRegistry.ts";
+import {
+  assertSuiteProvider,
+  suiteLaunchEnabled,
+  suiteLeadIdPrefix,
+} from "./SuiteExecutionPolicy.ts";
 import { ExpertSnapshotService } from "../expert/ExpertSnapshotService.ts";
 import { SkillPackageService } from "../skill/SkillPackageService.ts";
 import { ThreadBindingRepository } from "../thread/ThreadBindingRepository.ts";
@@ -42,7 +48,7 @@ const stableJson = (value: unknown): string => {
 };
 
 const commandIdFor = (clientRequestId: string): string =>
-  `linx:suite:launch:${sha256(clientRequestId)}`;
+  `${suiteLeadIdPrefix}${sha256(clientRequestId)}`;
 
 const requestHashFor = (input: LinxLaunchSuiteInput): string =>
   sha256(
@@ -88,22 +94,39 @@ export const layer = Layer.effect(
     const skills = yield* SkillPackageService;
     const bindings = yield* ThreadBindingRepository;
     const launcher = yield* ThreadLauncher;
+    const providers = yield* ProviderInstanceRegistry;
+    const enabled = yield* suiteLaunchEnabled;
 
     const launch = Effect.fn("SuiteLaunchService.launch")(function* (input: LinxLaunchSuiteInput) {
-      const snapshot = yield* suites.freeze(input.suiteId, input.suiteRevision).pipe(
-        Effect.mapError((error) => {
-          switch (error._tag) {
-            case "LinxDefinitionArchivedError":
-              return failure("snapshot_missing", "The selected suite is archived.");
-            case "LinxDefinitionMissingError":
-              return failure("not_found", "The selected suite does not exist.");
-            case "LinxDependencyMissingError":
-              return failure("dependency_missing", "A suite member snapshot is missing.");
-            default:
-              return failure("launch_failed", "The suite snapshot could not be frozen.");
-          }
-        }),
-      );
+      if (!enabled) {
+        return yield* Effect.fail(
+          failure("unsupported", "Suite execution is disabled on this server."),
+        );
+      }
+      const snapshot = yield* suites
+        .freeze(input.suiteId, input.suiteRevision, input.modelSelection)
+        .pipe(
+          Effect.mapError((error) => {
+            switch (error._tag) {
+              case "LinxDefinitionArchivedError":
+                return failure("snapshot_missing", "The selected suite is archived.");
+              case "LinxDefinitionMissingError":
+                return failure("not_found", "The selected suite does not exist.");
+              case "LinxDependencyMissingError":
+                return failure("dependency_missing", "A suite member snapshot is missing.");
+              default:
+                return failure("launch_failed", "The suite snapshot could not be frozen.");
+            }
+          }),
+        );
+      for (const model of [
+        input.modelSelection,
+        ...snapshot.content.members.map((member) => member.modelSelection ?? input.modelSelection),
+      ]) {
+        yield* assertSuiteProvider(providers, model).pipe(
+          Effect.mapError((error) => failure("unsupported", error.message)),
+        );
+      }
       const leadSnapshotId = snapshot.content.lead.snapshotId;
       const lead = yield* snapshots
         .getById(leadSnapshotId)

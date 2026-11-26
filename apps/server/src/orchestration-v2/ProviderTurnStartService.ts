@@ -949,10 +949,11 @@ export const layer: Layer.Layer<
         .pipe(Effect.result);
       if (resolvedPolicy._tag === "Failure") {
         const error = resolvedPolicy.failure;
-        if (error._tag !== "RuntimePolicyAboveCeilingError") return yield* error;
+        if (error._tag === "RuntimePolicyResolveError") return yield* error;
+        const suiteRefused = error._tag === "SuiteExecutionRefused";
         yield* settleStartFailure({
-          signal: "runtime-mode-above-ceiling",
-          title: "Thread mode is above the policy limit",
+          signal: suiteRefused ? "suite-execution-refused" : "runtime-mode-above-ceiling",
+          title: suiteRefused ? "Suite execution refused" : "Thread mode is above the policy limit",
           error,
           message: error.message,
         });

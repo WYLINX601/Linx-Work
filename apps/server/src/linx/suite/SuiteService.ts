@@ -7,6 +7,9 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as SqlError from "effect/sql/SqlError";
+import * as Schema from "effect/Schema";
+
+import { LinxSuitePolicy } from "@t3tools/contracts";
 
 import type {
   ModelSelection,
@@ -14,7 +17,6 @@ import type {
   LinxSuiteDetail,
   LinxSuiteMember,
   LinxSuiteMemberInput,
-  LinxSuitePolicy,
   LinxSuiteSummary,
 } from "@t3tools/contracts";
 
@@ -45,6 +47,7 @@ export interface LinxSuiteSnapshotContent {
   readonly version: 1;
   readonly suiteId: string;
   readonly suiteRevision: number;
+  readonly name?: string;
   readonly lead: {
     readonly expertId: string;
     readonly revision: number;
@@ -139,6 +142,24 @@ const validateMembers = Effect.fn("SuiteService.validateMembers")(function* (
   }
 });
 
+export class LinxSuitePolicyError extends Schema.TaggedError<LinxSuitePolicyError>()(
+  "LinxSuitePolicyError",
+  { message: Schema.String },
+) {}
+
+const decodePolicy = Schema.decodeUnknownOption(LinxSuitePolicy);
+const normalizedPolicy = (policy: LinxSuitePolicy): Required<LinxSuitePolicy> => ({
+  maxActiveDelegations: Math.min(4, Math.max(1, policy.maxActiveDelegations)),
+  sandbox: policy.sandbox ?? "read-only",
+  workspaceIsolation: policy.workspaceIsolation ?? "shared",
+  approval: policy.approval ?? "never",
+});
+
+const validatePolicy = (policy: Required<LinxSuitePolicy>) =>
+  policy.sandbox === "workspace-write" && policy.workspaceIsolation !== "worktree"
+    ? new LinxSuitePolicyError({ message: "Workspace writes require a dedicated child worktree." })
+    : undefined;
+
 const parseMembers = (row: RevisionRow): ReadonlyArray<LinxSuiteMemberInput> =>
   JSON.parse(row.members_json) as ReadonlyArray<LinxSuiteMemberInput>;
 const parsePolicy = (row: RevisionRow): LinxSuitePolicy =>
@@ -153,6 +174,7 @@ export class SuiteService extends Context.Service<
       LinxSuiteDetail,
       | LinxDependencyMissingError
       | LinxDefinitionMissingError
+      | LinxSuitePolicyError
       | LinxDefinitionArchivedError
       | LinxRevisionConflictError
       | LinxSnapshotIntegrityError
@@ -192,7 +214,10 @@ export class SuiteService extends Context.Service<
     >;
     readonly getSnapshot: (
       suiteSnapshotId: string,
-    ) => Effect.Effect<LinxSuiteSnapshot | null, LinxStorageError | SqlError.SqlError>;
+    ) => Effect.Effect<
+      LinxSuiteSnapshot | null,
+      LinxSnapshotIntegrityError | LinxStorageError | SqlError.SqlError
+    >;
   }
 >()("t3/linx/suite/SuiteService") {}
 
@@ -300,9 +325,9 @@ export const layer = Layer.effect(
           });
         }
       }
-      const policy: LinxSuitePolicy = {
-        maxActiveDelegations: Math.min(4, Math.max(1, input.policy.maxActiveDelegations)),
-      };
+      const policy = normalizedPolicy(input.policy);
+      const rejected = validatePolicy(policy);
+      if (rejected !== undefined) return yield* rejected;
       const membersJson = JSON.stringify(input.members);
       const policyJson = JSON.stringify(policy);
       const name = input.name.trim();
@@ -518,6 +543,7 @@ export const layer = Layer.effect(
         version: 1,
         suiteId,
         suiteRevision: targetRevision,
+        name: definition.name,
         lead: {
           expertId: lead.expertId,
           revision: lead.revision,
@@ -526,7 +552,7 @@ export const layer = Layer.effect(
         },
         ...(leadModelSelection === undefined ? {} : { leadModelSelection }),
         members,
-        policy: parsePolicy(row),
+        policy: normalizedPolicy(parsePolicy(row)),
       };
       const contentJson = canonicalJson(content);
       const contentHash = sha256(`linx-suite/1\0${contentJson}`);
@@ -559,9 +585,22 @@ export const layer = Layer.effect(
     const getSnapshot = Effect.fn("SuiteService.getSnapshot")(function* (suiteSnapshotId: string) {
       const row = (yield* selectSnapshot(suiteSnapshotId))[0];
       if (row === undefined) return null;
+      const content = JSON.parse(row.content_json) as LinxSuiteSnapshotContent;
+      const contentHash = sha256(`linx-suite/1\0${canonicalJson(content)}`);
+      const policy = decodePolicy(content.policy);
+      if (
+        contentHash !== row.content_hash ||
+        `ssnap_${contentHash.slice(0, 32)}` !== suiteSnapshotId ||
+        content.suiteId !== row.suite_id ||
+        content.suiteRevision !== row.revision ||
+        policy._tag === "None" ||
+        validatePolicy(normalizedPolicy(policy.value)) !== undefined
+      ) {
+        return yield* new LinxSnapshotIntegrityError({ snapshotId: suiteSnapshotId });
+      }
       return {
         suiteSnapshotId: row.suite_snapshot_id,
-        content: JSON.parse(row.content_json) as LinxSuiteSnapshotContent,
+        content,
         contentHash: row.content_hash,
         createdAt: row.created_at,
       } satisfies LinxSuiteSnapshot;

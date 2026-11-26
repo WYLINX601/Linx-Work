@@ -18,6 +18,7 @@ import {
 import type { ManagedServerProvider } from "@t3tools/provider-core/server/snapshot";
 import type { CodexEffectiveRuntime } from "../../provider/CodexManagedRuntime.ts";
 import { classifyCodexManagedError } from "../../provider/CodexManagedErrors.ts";
+import { SuiteExecutionRefused } from "../../linx/suite/SuiteExecutionPolicy.ts";
 import {
   buildCodexInitializeParams,
   codexAppServerEnvironment,
@@ -136,6 +137,7 @@ import { codexAppServerArgs, resolveCodexLaunchArgs } from "../../provider/codex
 import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import * as McpProviderSession from "@t3tools/provider-core/server/mcpSession";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
+import { randomUuidV4 } from "@t3tools/provider-core/server/randomUuid";
 import {
   MCP_APP_EXTENSION_ID,
   MCP_APP_MIME_TYPE,
@@ -934,9 +936,11 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
         ? runtimeModeDefaults.approvalPolicy
         : yield* decodeTurnApprovalPolicy(input.runtimePolicy.approvalPolicy);
     const baseSandboxPolicy =
-      input.runtimePolicy.sandboxPolicy === undefined
-        ? runtimeModeDefaults.sandboxPolicy
-        : yield* decodeTurnSandboxPolicy(input.runtimePolicy.sandboxPolicy);
+      input.runtimePolicy.suiteIsolation === true
+        ? undefined
+        : input.runtimePolicy.sandboxPolicy === undefined
+          ? runtimeModeDefaults.sandboxPolicy
+          : yield* decodeTurnSandboxPolicy(input.runtimePolicy.sandboxPolicy);
     const extraRoots = input.runtimePolicy.workspace?.extraRoots ?? [];
     const sandboxPolicy =
       baseSandboxPolicy?.type === "workspaceWrite" && extraRoots.length > 0
@@ -986,7 +990,10 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
           )
         : undefined;
     // Its own entry, so the folder list reaches the model without T3 Code's MCP tools too.
-    const workspaceInstructions = buildWorkspaceInstructions(input.runtimePolicy);
+    const workspaceInstructions =
+      input.runtimePolicy.suiteIsolation === true
+        ? ""
+        : buildWorkspaceInstructions(input.runtimePolicy);
     const workspaceContext =
       workspaceInstructions === ""
         ? undefined
@@ -1683,6 +1690,23 @@ const CODEX_T3_MCP_TOOL_TIMEOUT_SEC = 65 * 60;
 const CODEX_T3_DIRECT_MCP_SERVER = "t3-code-direct";
 const CODEX_DIRECT_ONLY_T3_TOOLS = ["t3_thread_wait", "delegate_task"];
 
+const suiteCodexConfig = {
+  "agents.enabled": false,
+  "features.multi_agent": false,
+  "features.multi_agent_v2": false,
+  "features.multi_agent_v2_dynamic_tools": false,
+  "features.apps": false,
+  "features.plugins": false,
+  "features.enable_mcp_apps": false,
+  "features.code_mode_host": false,
+  "features.code_mode": false,
+  "features.goals": false,
+  "features.hooks": false,
+  "features.skip_host_skill_discovery": true,
+  "features.skill_mcp_dependency_install": false,
+  web_search: "disabled",
+} as const;
+
 /** Names of the stdio MCP servers in a `config/read` config, the ones Codex starts per thread. */
 function codexStdioMcpServerNames(mcpServers: unknown): ReadonlyArray<string> {
   if (mcpServers === null || typeof mcpServers !== "object") return [];
@@ -1702,8 +1726,10 @@ function codexThreadRuntimeParams(input: {
   readonly threadId: ThreadId | null;
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly stdioMcpServers?: ReadonlyArray<string>;
+  readonly disabledMcpServers?: ReadonlyArray<string>;
   readonly modelSelection?: { readonly model: string };
   readonly runtimePolicy?: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
+  readonly suiteProfile?: string | undefined;
 }): {
   readonly cwd?: string;
   readonly model?: string;
@@ -1723,6 +1749,31 @@ function codexThreadRuntimeParams(input: {
     ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
     config: {
       ...CODEX_THREAD_CONFIG,
+      ...(input.runtimePolicy?.suiteIsolation === true
+        ? {
+            ...suiteCodexConfig,
+            ...(input.suiteProfile === undefined || input.runtimePolicy.cwd === null
+              ? {}
+              : {
+                  default_permissions: input.suiteProfile,
+                  [`permissions.${input.suiteProfile}`]: {
+                    filesystem: {
+                      ":minimal": "read",
+                      [input.runtimePolicy.cwd]:
+                        input.runtimePolicy.runtimeMode === "approval-required" ? "read" : "write",
+                      "/private/tmp": "deny",
+                      "/private/var/folders": "deny",
+                      "/private/var/tmp": "deny",
+                    },
+                    network: { enabled: false },
+                  },
+                }),
+            approval_policy: "never",
+            ...Object.fromEntries(
+              input.disabledMcpServers?.map((name) => [`mcp_servers.${name}.enabled`, false]) ?? [],
+            ),
+          }
+        : {}),
       // One app-server serves many threads, so the id goes in per-thread shell config, not its env.
       ...(input.threadId === null
         ? {}
@@ -1740,7 +1791,23 @@ function codexThreadRuntimeParams(input: {
         ? {}
         : {
             // Override only T3's servers so launch-argument MCP servers survive.
-            "mcp_servers.t3-code": { ...t3Server, disabled_tools: CODEX_DIRECT_ONLY_T3_TOOLS },
+            "mcp_servers.t3-code": {
+              ...t3Server,
+              disabled_tools: CODEX_DIRECT_ONLY_T3_TOOLS,
+              ...(input.runtimePolicy?.suiteIsolation === true
+                ? {
+                    // The Suite gateway checks native lineage and the frozen and live tool grants.
+                    tools: {
+                      linx_suite_delegate: { approval_mode: "approve" },
+                      task_cancel: { approval_mode: "approve" },
+                      task_status: { approval_mode: "approve" },
+                      ...(input.runtimePolicy.approvalPolicy === "never"
+                        ? { linx_mcp_call: { approval_mode: "approve" } }
+                        : {}),
+                    },
+                  }
+                : {}),
+            },
             // Code Mode runs a blocking wait or delegate wait as a nested call, and the model
             // keeps polling it. A second, direct-only registration makes it a plain tool call.
             [`mcp_servers.${CODEX_T3_DIRECT_MCP_SERVER}`]: {
@@ -1756,6 +1823,15 @@ function codexThreadRuntimeParams(input: {
 const decodeCodexResumeMetadata = Schema.decodeUnknownEffect(
   Schema.Struct({ thread: Schema.Struct({ id: Schema.String, updatedAt: Schema.Number }) }),
 );
+
+const decodeSuiteProfile = Schema.decodeUnknownEffect(
+  Schema.Struct({
+    cwd: Schema.String,
+    activePermissionProfile: Schema.Struct({ id: Schema.String }),
+  }),
+);
+
+const decodeCodexStartedThread = Schema.decodeUnknownEffect(CodexSchema.V2ThreadStartResponse);
 
 const CodexChildSelection = Schema.Struct({
   thread: Schema.Struct({ id: Schema.String }),
@@ -2316,6 +2392,36 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             ),
             withAppServerDeadline("config/read"),
           );
+        const readSuiteMcpServers = (
+          policy: ProviderAdapter.ProviderAdapterV2RuntimePolicy | undefined,
+        ) => {
+          if (policy?.suiteIsolation !== true) return Effect.succeed([]);
+          return client
+            .request("config/read", {
+              ...(policy.cwd == null ? {} : { cwd: policy.cwd }),
+              includeLayers: false,
+            })
+            .pipe(
+              Effect.flatMap(({ config }) => {
+                const servers = config.mcp_servers;
+                const names =
+                  servers !== null && typeof servers === "object" ? Object.keys(servers) : [];
+                // The app server interprets dots in overrides as separate configuration keys.
+                if (names.some((name) => !/^[A-Za-z0-9_-]+$/.test(name))) {
+                  return Effect.fail(
+                    new SuiteExecutionRefused({
+                      message:
+                        "Cannot safely disable the configured Codex MCP servers for a Suite turn.",
+                    }),
+                  );
+                }
+                return Effect.succeed(
+                  names.filter((name) => name !== "t3-code" && name !== CODEX_T3_DIRECT_MCP_SERVER),
+                );
+              }),
+              withAppServerDeadline("config/read (Suite)"),
+            );
+        };
         const now = yield* DateTime.now;
         const session = providerSession({
           providerSessionId: input.providerSessionId,
@@ -2494,6 +2600,26 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
         const turnTerminalizationPermit = yield* Semaphore.make(1);
         const goalsByNativeThread = new Map<string, OrchestrationV2ProviderGoal | null>();
         const rootProviderThreads = new Map<string, OrchestrationV2ProviderThread>();
+        const suiteNativePolicies = new Map<
+          string,
+          readonly [cwd: string, runtimeMode: RuntimeMode]
+        >();
+        const registerSuiteNativePolicy = Effect.fn("CodexAdapterV2.registerSuiteNativePolicy")(
+          function* (
+            response: unknown,
+            nativeThreadId: string,
+            policy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
+            profile: string,
+          ) {
+            const effective = yield* decodeSuiteProfile(response);
+            if (effective.activePermissionProfile.id !== profile || effective.cwd !== policy.cwd) {
+              return yield* new SuiteExecutionRefused({
+                message: "Codex did not activate the requested Suite sandbox.",
+              });
+            }
+            suiteNativePolicies.set(nativeThreadId, [effective.cwd, policy.runtimeMode]);
+          },
+        );
         const goalHolds = new Map<string, CodexGoalHold>();
         const continuedRuns = new Map<ProviderTurnId, Array<ActiveCodexTurnContext>>();
         const capacityContinuations = new Map<
@@ -5667,6 +5793,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           Effect.gen(function* () {
             const closing = threadClosings.get(payload.threadId);
             threadClosings.delete(payload.threadId);
+            suiteNativePolicies.delete(payload.threadId);
             if (closing !== undefined) yield* Deferred.succeed(closing, undefined);
             const completedAt = yield* DateTime.now;
             for (const context of (yield* Ref.get(settledTurns)).values()) {
@@ -7913,6 +8040,17 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             codexInput: ReadonlyArray<CodexSchema.V2TurnStartParams__UserInput>,
           ) {
             const threadId = yield* getNativeThreadId(turnInput.providerThread);
+            if (turnInput.runtimePolicy.suiteIsolation === true) {
+              const verified = suiteNativePolicies.get(threadId);
+              if (
+                verified?.[0] !== turnInput.runtimePolicy.cwd ||
+                verified?.[1] !== turnInput.runtimePolicy.runtimeMode
+              ) {
+                return yield* new SuiteExecutionRefused({
+                  message: "The Codex Suite sandbox could not be verified for this turn.",
+                });
+              }
+            }
             // A thread can reach its first turn without ensureThread or resumeThread, like a fork.
             if (!appThreadByNativeThread.has(threadId)) {
               appThreadByNativeThread.set(threadId, turnInput.threadId);
@@ -7937,8 +8075,12 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               modelSelection: turnInput.modelSelection,
               hasT3Mcp: mcpSession !== undefined,
               agentFeedback: turnInput.agentFeedback ?? "off",
-              browserToolsAvailable: mcpSession?.browserToolsAvailable ?? true,
-              deviceToolsAvailable: mcpSession?.capabilities?.has("device") ?? false,
+              browserToolsAvailable:
+                turnInput.runtimePolicy.suiteIsolation !== true &&
+                (mcpSession?.browserToolsAvailable ?? true),
+              deviceToolsAvailable:
+                turnInput.runtimePolicy.suiteIsolation !== true &&
+                (mcpSession?.capabilities?.has("device") ?? false),
               omitServiceTier: adapterOptions.resolveRuntime !== undefined,
               ...(turnInput.appContext === undefined ? {} : { appContext: turnInput.appContext }),
               ...(configuredReasoningSummary === undefined ? {} : { configuredReasoningSummary }),
@@ -8338,22 +8480,44 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               Effect.andThen(
                 Effect.all([
                   mcpSessions.read(threadInput.threadId),
-                  readStdioMcpServers(threadInput.runtimePolicy.cwd),
+                  threadInput.runtimePolicy.suiteIsolation === true
+                    ? Effect.succeed([])
+                    : readStdioMcpServers(threadInput.runtimePolicy.cwd),
+                  readSuiteMcpServers(threadInput.runtimePolicy),
                 ]),
               ),
-              Effect.flatMap(([mcpSession, stdioMcpServers]) =>
-                client.request("thread/start", {
-                  ...codexThreadRuntimeParams({
-                    threadId: threadInput.threadId,
-                    mcpSession,
-                    stdioMcpServers,
-                    modelSelection: threadInput.modelSelection,
-                    runtimePolicy: threadInput.runtimePolicy,
-                  }),
-                  // Codex tags the child's MCP calls with thread_source "subagent".
-                  ...(IdAllocator.isDelegatedTaskThread(threadInput.threadId)
-                    ? { threadSource: "subagent" }
-                    : {}),
+              Effect.flatMap(([mcpSession, stdioMcpServers, disabledMcpServers]) =>
+                Effect.gen(function* () {
+                  const suiteProfile =
+                    threadInput.runtimePolicy.suiteIsolation === true
+                      ? `linx-suite-${yield* randomUuidV4}`
+                      : undefined;
+                  const params = {
+                    ...codexThreadRuntimeParams({
+                      threadId: threadInput.threadId,
+                      mcpSession,
+                      stdioMcpServers,
+                      disabledMcpServers,
+                      modelSelection: threadInput.modelSelection,
+                      runtimePolicy: threadInput.runtimePolicy,
+                      suiteProfile,
+                    }),
+                    // Codex identifies delegated children as subagents in MCP tool calls.
+                    ...(IdAllocator.isDelegatedTaskThread(threadInput.threadId)
+                      ? { threadSource: "subagent" as const }
+                      : {}),
+                  };
+                  if (suiteProfile === undefined)
+                    return yield* client.request("thread/start", params);
+                  const raw = yield* client.raw.request("thread/start", params);
+                  const started = yield* decodeCodexStartedThread(raw);
+                  yield* registerSuiteNativePolicy(
+                    raw,
+                    started.thread.id,
+                    threadInput.runtimePolicy,
+                    suiteProfile,
+                  );
+                  return started;
                 }),
               ),
               Effect.tap((response) => {
@@ -8386,12 +8550,24 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               const nativeThreadId = yield* getNativeThreadId(threadInput.providerThread);
               const appThreadId = threadInput.threadId ?? threadInput.providerThread.appThreadId;
               if (appThreadId != null) appThreadByNativeThread.set(nativeThreadId, appThreadId);
+              const suitePolicy =
+                threadInput.runtimePolicy?.suiteIsolation === true
+                  ? threadInput.runtimePolicy
+                  : undefined;
+              const suiteProfile =
+                suitePolicy === undefined ? undefined : `linx-suite-${yield* randomUuidV4}`;
+              if (suiteProfile !== undefined) suiteNativePolicies.delete(nativeThreadId);
               const resume = resumeNativeThread(nativeThreadId, {
                 excludeTurns: true,
                 ...codexThreadRuntimeParams({
                   threadId: appThreadId,
                   mcpSession: yield* readMcpSession(appThreadId),
-                  stdioMcpServers: yield* readStdioMcpServers(threadInput.runtimePolicy?.cwd),
+                  stdioMcpServers:
+                    threadInput.runtimePolicy?.suiteIsolation === true
+                      ? []
+                      : yield* readStdioMcpServers(threadInput.runtimePolicy?.cwd),
+                  disabledMcpServers: yield* readSuiteMcpServers(threadInput.runtimePolicy),
+                  suiteProfile,
                   ...(threadInput.modelSelection === undefined
                     ? {}
                     : { modelSelection: threadInput.modelSelection }),
@@ -8407,6 +8583,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               const response = yield* ensureInitialized.pipe(
                 Effect.andThen(appThreadId == null ? resume : reportingResume(appThreadId, resume)),
                 withAppServerDeadline("thread/resume"),
+                Effect.tap((raw) =>
+                  suiteProfile === undefined || suitePolicy === undefined
+                    ? Effect.void
+                    : registerSuiteNativePolicy(raw, nativeThreadId, suitePolicy, suiteProfile),
+                ),
                 Effect.flatMap(decodeCodexResumeMetadata),
                 // Stay registered: a lost or undecodable response may still have resumed the thread.
                 Effect.onError(() =>
