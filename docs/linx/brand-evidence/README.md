@@ -29,6 +29,8 @@ vp run icons:export
 vp run icons:export:android   # regenerated foreground, monochrome, backgrounds and splashes
 node apps/mobile/scripts/generate-uniwind-themes.mts
 vp run dist:desktop:dmg:arm64 # produced release/Linxwork-0.1.11-arm64.dmg
+node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64 \
+  --build-version 0.1.24 --output-dir release/linxwork-0.1.24 # published v0.1.24
 ```
 
 ## Generated icon evidence
@@ -48,8 +50,17 @@ Windows ICO exports contain 16/24/32/48/64/128/256; web favicons and PWA icons a
 
 ## Packaged app
 
-`vp run dist:desktop:dmg:arm64` (version `0.1.11`) produced
-`release/Linxwork-0.1.11-arm64.dmg` (226 MB), its zip, and `latest-mac.yml`.
+The published release was built from commit `2c8567e8f6b2` with:
+
+```sh
+node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64 \
+  --build-version 0.1.24 --output-dir release/linxwork-0.1.24
+```
+
+It produced `release/linxwork-0.1.24/Linxwork-0.1.24-arm64.dmg` (226 MB), its zip, and
+`latest-mac.yml`. Published at
+[`v0.1.24`](https://github.com/WYLINX601/Linx-Work/releases/tag/v0.1.24) with the DMG
+and `latest-mac.yml` (unsigned manual-update channel).
 
 Verified from the mounted DMG:
 
@@ -58,8 +69,12 @@ Verified from the mounted DMG:
 - `icon.icns` renders the new mark: `screenshots/dmg-built-app-icon-1024.png`.
 - DMG background contains the mark and `Drag Linxwork into Applications.`:
   `screenshots/dmg-built-background-640x432.png`.
-- `latest-mac.yml` references `Linxwork-0.1.11-arm64.zip` / `.dmg`.
-- The packaged `app.asar` contains `Linxwork (Beta)` and the
+- `latest-mac.yml` version `0.1.24`; the published DMG sha256
+  `7f64cd0578209cb8f6568f453106d7db010a6e406ba55aaea4aca9b961136e72` matches the local
+  artifact and the GitHub asset digest.
+- `app-update.yml` points at `WYLINX601/Linx-Work` with `releaseType: release`.
+- The packaged `app.asar` package.json has `version`/`buildVersion` `0.1.24`,
+  `t3codeCommitHash` `2c8567e8f6b2`, and `linxManualUpdateOnly: true`; it contains the
   `LINX_SAFE_STORAGE_APP_BASE_NAME` shim.
 
 The app was not launched: it would share `~/Library/Application Support/linxworkos`
