@@ -17,7 +17,11 @@ import {
   DEV_PROXIED_ORIGIN_PRESERVING_PREFIXES,
   DEV_PROXIED_PATH_PREFIXES,
 } from "@t3tools/shared/devProxy";
-import { LINX_APP_BASE_NAME, LINX_DEV_WEB_PORT } from "@t3tools/shared/linxIdentity";
+import {
+  LINX_APP_BASE_NAME,
+  LINX_DEV_WEB_PORT,
+  LINX_RELEASE_REPOSITORY,
+} from "@t3tools/shared/linxIdentity";
 
 import { loadRepoEnv } from "../../scripts/lib/public-config";
 import { resolveTaggedSourceVersion } from "../../scripts/lib/tagged-source-version";
@@ -50,7 +54,7 @@ const configuredReleaseChannel =
 const configuredDesktopUpdateRepository =
   process.env.T3CODE_DESKTOP_UPDATE_REPOSITORY?.trim() ||
   process.env.GITHUB_REPOSITORY?.trim() ||
-  "";
+  LINX_RELEASE_REPOSITORY;
 const configuredHostedAppUrl = (() => {
   const explicitHostedAppUrl = process.env.VITE_HOSTED_APP_URL?.trim();
   if (explicitHostedAppUrl) {

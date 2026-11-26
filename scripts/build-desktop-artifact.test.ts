@@ -44,6 +44,7 @@ import {
   resolveMacPasskeySigningConfiguration,
   resolveMergedStageDependencies,
   resolveBuildOptions,
+  shouldUseManualDesktopUpdates,
   stageWslRuntimeArchive,
   ancestorNodeModulesPaths,
   copyDirectoryPreservingSymlinks,
@@ -557,6 +558,58 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         ),
       ),
     ),
+  );
+
+  it.effect(
+    "defaults GitHub release feeds to WYLINX601/Linx-Work and marks unsigned macOS builds manual-only",
+    () =>
+      Effect.gen(function* () {
+        const release = yield* createBuildConfig(
+          "mac",
+          "dmg",
+          "0.1.23",
+          false,
+          false,
+          undefined,
+          undefined,
+        );
+        const mockRelease = yield* createBuildConfig(
+          "mac",
+          "dmg",
+          "0.1.23",
+          false,
+          true,
+          4141,
+          undefined,
+        );
+
+        assert.deepStrictEqual(release.publish, [
+          {
+            provider: "github",
+            owner: "WYLINX601",
+            repo: "Linx-Work",
+            releaseType: "release",
+          },
+        ]);
+        assert.deepStrictEqual(mockRelease.publish, [
+          {
+            provider: "generic",
+            url: "http://localhost:4141",
+          },
+        ]);
+        assert.isTrue(
+          shouldUseManualDesktopUpdates({ platform: "mac", signed: false, mockUpdates: false }),
+        );
+        assert.isFalse(
+          shouldUseManualDesktopUpdates({ platform: "mac", signed: true, mockUpdates: false }),
+        );
+        assert.isFalse(
+          shouldUseManualDesktopUpdates({ platform: "mac", signed: false, mockUpdates: true }),
+        );
+        assert.isFalse(
+          shouldUseManualDesktopUpdates({ platform: "linux", signed: false, mockUpdates: false }),
+        );
+      }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
   );
 
   it.effect("names the Electron window class in the Linux desktop entry", () =>

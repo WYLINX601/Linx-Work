@@ -5,14 +5,15 @@ import type {
   DesktopUpdateState,
 } from "@t3tools/contracts";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
+import { LINX_RELEASE_REPOSITORY } from "@t3tools/shared/linxIdentity";
 import { msg } from "gt-react";
 
 import { m, type MessageResolver } from "../i18n/messages";
 import { channelSwitchLabel } from "./sidebar/updateEverything.logic";
 
-export type DesktopUpdateButtonAction = "download" | "install" | "none";
+export type DesktopUpdateButtonAction = "download" | "install" | "open-release" | "none";
 
-const DEFAULT_DESKTOP_RELEASE_REPOSITORY = "pingdotgg/t3code";
+const DEFAULT_DESKTOP_RELEASE_REPOSITORY = LINX_RELEASE_REPOSITORY;
 const GITHUB_REPOSITORY_SEGMENT = /^[A-Za-z0-9._-]+$/u;
 
 function isValidRepositorySegment(value: string | undefined): value is string {
@@ -54,6 +55,9 @@ export function getDesktopUpdateReleaseHistoryUrl(
 export function resolveDesktopUpdateButtonAction(
   state: DesktopUpdateState,
 ): DesktopUpdateButtonAction {
+  if (state.manualDownloadOnly === true) {
+    return state.status === "available" ? "open-release" : "none";
+  }
   if (
     state.downloadedVersion &&
     (state.status === "downloaded" ||

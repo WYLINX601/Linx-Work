@@ -23,6 +23,7 @@ import {
   LINX_DESKTOP_APP_ID,
   LINX_DESKTOP_DEV_SCHEME,
   LINX_DESKTOP_SCHEME,
+  LINX_RELEASE_REPOSITORY,
 } from "@t3tools/shared/linxIdentity";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import rootPackageJson from "../package.json" with { type: "json" };
@@ -974,6 +975,7 @@ interface StagePackageJson {
   readonly buildVersion: string;
   readonly t3codeCommitHash: string;
   readonly t3codeWebAuthn?: MacWebAuthnEntitlements;
+  readonly linxManualUpdateOnly?: boolean;
   readonly private: true;
   readonly packageManager: string;
   readonly description: string;
@@ -2744,7 +2746,7 @@ export const resolveGitHubPublishConfig = Effect.fn("resolveGitHubPublishConfig"
   const rawRepo = (
     Option.getOrUndefined(env.updateRepository)?.trim() ||
     Option.getOrUndefined(env.githubRepository)?.trim() ||
-    ""
+    LINX_RELEASE_REPOSITORY
   ).trim();
   if (!rawRepo) return undefined;
 
@@ -2759,6 +2761,15 @@ export const resolveGitHubPublishConfig = Effect.fn("resolveGitHubPublishConfig"
     ...(updateChannel === "nightly" ? { channel: "nightly" as const } : {}),
   };
 });
+
+/** Ad-hoc signed macOS builds cannot pass Squirrel.Mac signature verification during in-app replacement. */
+export function shouldUseManualDesktopUpdates(input: {
+  readonly platform: typeof BuildPlatform.Type;
+  readonly signed: boolean;
+  readonly mockUpdates: boolean;
+}): boolean {
+  return input.platform === "mac" && !input.signed && !input.mockUpdates;
+}
 
 export function resolveDesktopUpdateChannel(version: string): "latest" | "nightly" {
   return /-nightly\.\d{8}\.\d+$/.test(version) ? "nightly" : "latest";
@@ -2862,16 +2873,18 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   // Missing publish config infers a GitHub feed from tokens; staging has no repository, so manifest generation would crash.
   buildConfig.publish = null;
   if (!isDesktopPreviewVersion(version)) {
-    const publishConfig = yield* resolveGitHubPublishConfig(updateChannel);
-    if (publishConfig) {
-      buildConfig.publish = [publishConfig];
-    } else if (mockUpdates) {
+    if (mockUpdates) {
       buildConfig.publish = [
         {
           provider: "generic",
           url: resolveMockUpdateServerUrl(mockUpdateServerPort),
         },
       ];
+    } else {
+      const publishConfig = yield* resolveGitHubPublishConfig(updateChannel);
+      if (publishConfig) {
+        buildConfig.publish = [publishConfig];
+      }
     }
   }
 
@@ -3966,6 +3979,13 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     t3codeCommitHash: commitHash,
     // Read by apps/desktop/src/preview/Passkeys.ts; must match the signed entitlements.
     ...(macWebAuthn ? { t3codeWebAuthn: macWebAuthn } : {}),
+    ...(shouldUseManualDesktopUpdates({
+      platform: options.platform,
+      signed: options.signed,
+      mockUpdates: options.mockUpdates,
+    })
+      ? { linxManualUpdateOnly: true }
+      : {}),
     private: true,
     packageManager: rootPackageJson.packageManager,
     description:

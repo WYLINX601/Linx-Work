@@ -41,6 +41,13 @@ export function nextRemoteDesktopUpdateStep(
       reason: disabledReason ?? "Automatic updates are disabled on this machine.",
     };
   }
+  if (state.manualDownloadOnly === true) {
+    return {
+      action: "done",
+      outcome: "failed",
+      reason: "This desktop build requires downloading and installing updates manually.",
+    };
+  }
   // Reinstalling a failed version disrupts threads without updating; retries require the local user.
   if (
     state.notAppliedVersion !== undefined &&

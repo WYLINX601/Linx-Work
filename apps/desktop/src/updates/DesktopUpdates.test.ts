@@ -1536,4 +1536,47 @@ describe("DesktopUpdates under a managed policy", () => {
       }),
     ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
   });
+
+  it.effect(
+    "detects updates but refuses in-app download and install on manual-update builds",
+    () => {
+      const harness = makeHarness({
+        env: { T3CODE_DESKTOP_MOCK_UPDATES: "false" },
+        appUpdateYml: "provider: github\nowner: WYLINX601\nrepo: Linx-Work\nreleaseType: release\n",
+        packageJson: JSON.stringify({ linxManualUpdateOnly: true }),
+      });
+
+      return Effect.scoped(
+        Effect.gen(function* () {
+          const updates = yield* DesktopUpdates.DesktopUpdates;
+          const desktopState = yield* DesktopState.DesktopState;
+          yield* updates.configure;
+
+          const initial = yield* updates.getState;
+          assert.isTrue(initial.enabled);
+          assert.equal(initial.status, "idle");
+          assert.isTrue(initial.manualDownloadOnly);
+          assert.isTrue((yield* encodeUpdateState(initial)).manualDownloadOnly);
+          assert.isFalse(yield* Ref.get(desktopState.canInstallUpdates));
+
+          const available = yield* nextPublishedState(() =>
+            harness.emit("update-available", { version: "2.0.0" }),
+          );
+          assert.equal(available.status, "available");
+          assert.equal(available.availableVersion, "2.0.0");
+          assert.isTrue(available.manualDownloadOnly);
+
+          const downloadResult = yield* updates.download;
+          assert.isFalse(downloadResult.accepted);
+          assert.isFalse(downloadResult.completed);
+          assert.equal(harness.downloadCount(), 0);
+
+          const installResult = yield* updates.install;
+          assert.isFalse(installResult.accepted);
+          assert.isFalse(installResult.completed);
+          assert.equal(harness.quitAndInstalls(), 0);
+        }),
+      ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
+    },
+  );
 });

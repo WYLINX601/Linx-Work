@@ -1,8 +1,26 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { cliArchiveTarCommand, newestCliReleaseVersion, parseChecksums } from "./cliRelease.ts";
+import {
+  CLI_RELEASE_REPOSITORY,
+  CLI_RELEASES_PAGE_URL,
+  cliArchiveTarCommand,
+  cliReleaseAssetUrl,
+  cliReleaseIndexPageUrl,
+  newestCliReleaseVersion,
+  parseChecksums,
+} from "./cliRelease.ts";
 
 describe("cliRelease", () => {
+  it("targets the Linx-Work GitHub repository by default", () => {
+    expect(CLI_RELEASE_REPOSITORY).toBe("WYLINX601/Linx-Work");
+    expect(CLI_RELEASES_PAGE_URL).toBe("https://github.com/WYLINX601/Linx-Work/releases");
+    expect(cliReleaseIndexPageUrl(1)).toBe(
+      "https://api.github.com/repos/WYLINX601/Linx-Work/releases?per_page=100&page=1",
+    );
+    expect(cliReleaseAssetUrl("0.1.23", "SHA256SUMS")).toBe(
+      "https://github.com/WYLINX601/Linx-Work/releases/download/v0.1.23/SHA256SUMS",
+    );
+  });
   it("parses sha256sum output including binary-mode markers", () => {
     const checksums = parseChecksums(
       [

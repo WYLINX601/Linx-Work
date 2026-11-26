@@ -8,6 +8,7 @@
 
 export const LINX_APP_BASE_NAME = "LinxWorkOS";
 export const LINX_APP_SLUG = "linx";
+export const LINX_RELEASE_REPOSITORY = "WYLINX601/Linx-Work";
 
 // The legacy Linx app uses .linx and has an incompatible migration history.
 export const LINX_HOME_DIR_NAME = ".linxworkos";

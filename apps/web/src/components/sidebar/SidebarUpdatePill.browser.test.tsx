@@ -1,4 +1,4 @@
-import type { DesktopUpdateState } from "@t3tools/contracts";
+import type { DesktopBridge, DesktopUpdateState } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
@@ -166,5 +166,45 @@ describe("SidebarUpdatePill update everything", () => {
     const row = table.getByRole("row", { name: new RegExp(label) });
     await expect.element(row.getByRole("cell", { name: label, exact: true })).toBeVisible();
     await expect.element(row.getByRole("cell", { name: "Claude", exact: true })).toBeVisible();
+  });
+});
+
+describe("SidebarUpdatePill manual updates", () => {
+  it("opens the Linx-Work GitHub release page instead of downloading on manual-update builds", async () => {
+    const openExternal = vi.fn(async () => true);
+    const downloadUpdate = vi.fn(async () => {
+      throw new Error("downloadUpdate should not be called");
+    });
+    const previousBridge = window.desktopBridge;
+    window.desktopBridge = {
+      ...previousBridge,
+      openExternal,
+      downloadUpdate,
+    } as unknown as DesktopBridge;
+    try {
+      setup({
+        ...nightlyUpdate([]),
+        channel: "latest",
+        currentVersion: "0.1.22",
+        availableVersion: "0.1.23",
+        manualDownloadOnly: true,
+      });
+      await using screen = await render(<SidebarUpdatePill />);
+      await userEvent.click(
+        screen.getByRole("button", { name: "Update 0.1.23 ready to download" }),
+      );
+      await vi.waitFor(() =>
+        expect(openExternal).toHaveBeenCalledWith(
+          "https://github.com/WYLINX601/Linx-Work/releases/tag/v0.1.23",
+        ),
+      );
+      expect(downloadUpdate).not.toHaveBeenCalled();
+    } finally {
+      if (previousBridge === undefined) {
+        delete window.desktopBridge;
+      } else {
+        window.desktopBridge = previousBridge;
+      }
+    }
   });
 });

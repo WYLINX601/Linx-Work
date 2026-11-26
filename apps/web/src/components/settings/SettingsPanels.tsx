@@ -46,10 +46,13 @@ import {
   getDesktopUpdateButtonTooltip,
   getDesktopUpdateDisabledReason,
   getDesktopUpdateInstallConfirmationMessage,
+  getDesktopUpdateReleaseHistoryUrl,
+  getDesktopUpdateReleaseUrl,
   installDesktopUpdate,
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
 } from "../../components/desktopUpdate.logic";
+import { openDesktopUpdateReleaseNotes } from "../../components/desktopUpdate.toast";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { isElectron } from "../../env";
@@ -201,7 +204,9 @@ function AboutVersionSection() {
   // A switch that failed part way leaves this app or a server on the other track.
   // With its updater off, a switch cannot move this app, so it is not counted.
   const appOffTrack =
-    updateState?.enabled !== false && desktopUpdateChannelOf(APP_VERSION) !== selectedUpdateChannel;
+    updateState?.enabled !== false &&
+    updateState?.manualDownloadOnly !== true &&
+    desktopUpdateChannelOf(APP_VERSION) !== selectedUpdateChannel;
   const unswitchedMachines =
     (appOffTrack ? 1 : 0) +
     environments.filter(
@@ -222,6 +227,14 @@ function AboutVersionSection() {
     if (!bridge) return;
 
     const action = updateState ? resolveDesktopUpdateButtonAction(updateState) : "none";
+
+    if (action === "open-release") {
+      const releaseUrl =
+        getDesktopUpdateReleaseUrl(updateState?.availableVersion ?? null) ??
+        getDesktopUpdateReleaseHistoryUrl();
+      void openDesktopUpdateReleaseNotes(bridge, releaseUrl);
+      return;
+    }
 
     if (action === "download") {
       void downloadLocalUpdate(bridge, { notifyDownloaded: false });
@@ -324,7 +337,11 @@ function AboutVersionSection() {
       ? !canCheckForUpdate(updateState)
       : isDesktopUpdateButtonDisabled(updateState);
 
-  const actionLabel: Record<string, string> = { download: gt("Download"), install: gt("Install") };
+  const actionLabel: Record<string, string> = {
+    download: gt("Download"),
+    "open-release": gt("Download"),
+    install: gt("Install"),
+  };
   const statusLabel: Record<string, string> = {
     checking: gt("Checking…"),
     downloading: gt("Downloading…"),
@@ -334,7 +351,7 @@ function AboutVersionSection() {
   const buttonLabel =
     actionLabel[action] ?? statusLabel[updateState?.status ?? ""] ?? gt("Check for Updates");
   const description =
-    action === "download" || action === "install"
+    action === "download" || action === "install" || action === "open-release"
       ? gt("Update available.")
       : (getDesktopUpdateDisabledReason(updateState, updatesDenial, messages) ??
         gt("Current version of the application."));

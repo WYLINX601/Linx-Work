@@ -17,6 +17,7 @@ vi.mock("electron", () => ({
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as ElectronMenu from "../electron/ElectronMenu.ts";
+import * as ElectronShell from "../electron/ElectronShell.ts";
 import * as DesktopApplicationMenu from "./DesktopApplicationMenu.ts";
 import * as DesktopConfig from "../app/DesktopConfig.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
@@ -63,18 +64,33 @@ const layerElectronApp = Layer.succeed(ElectronApp.ElectronApp, {
 interface MenuServices {
   readonly checkResult?: DesktopUpdateCheckResult;
   readonly shownMessageBox?: Deferred.Deferred<Electron.MessageBoxOptions>;
+  readonly messageBoxResponse?: number;
+  readonly openedExternalUrl?: Deferred.Deferred<unknown>;
 }
 
-const layerElectronDialog = ({ shownMessageBox }: MenuServices) =>
+const layerElectronDialog = ({ shownMessageBox, messageBoxResponse }: MenuServices) =>
   Layer.succeed(ElectronDialog.ElectronDialog, {
     pickFolder: () => Effect.succeedNone,
     pickFiles: () => Effect.succeed([]),
     showMessageBox: (options) =>
       (shownMessageBox ? Deferred.succeed(shownMessageBox, options) : Effect.void).pipe(
-        Effect.as({ response: options.cancelId ?? 0, checkboxChecked: false }),
+        Effect.as({
+          response: messageBoxResponse ?? options.cancelId ?? 0,
+          checkboxChecked: false,
+        }),
       ),
     showErrorBox: () => Effect.void,
   } satisfies ElectronDialog.ElectronDialog["Service"]);
+
+const layerElectronShell = ({ openedExternalUrl }: MenuServices) =>
+  Layer.succeed(ElectronShell.ElectronShell, {
+    openExternal: (rawUrl) =>
+      (openedExternalUrl ? Deferred.succeed(openedExternalUrl, rawUrl) : Effect.void).pipe(
+        Effect.as(true),
+      ),
+    openSystemSettings: () => Effect.succeed(true),
+    copyText: () => Effect.void,
+  } satisfies ElectronShell.ElectronShell["Service"]);
 
 const layerDesktopUpdates = ({ checkResult }: MenuServices) =>
   Layer.succeed(DesktopUpdates.DesktopUpdates, {
@@ -149,6 +165,7 @@ const configureMenu = (
         Layer.provideMerge(layerDesktopWindow(selectedAction)),
         Layer.provideMerge(layerDesktopUpdates(services)),
         Layer.provideMerge(layerElectronDialog(services)),
+        Layer.provideMerge(layerElectronShell(services)),
         Layer.provideMerge(layerElectronApp),
         Layer.provideMerge(
           DesktopEnvironment.layer({ ...environmentInput, ...environment }).pipe(
@@ -403,6 +420,62 @@ describe("DesktopApplicationMenu", () => {
       });
       assert.include(`${dialog.title ?? ""} ${dialog.message} ${dialog.detail ?? ""}`, "0.1.7");
     }),
+  );
+
+  it.effect(
+    "opens the Linx-Work GitHub release page instead of downloading on manual-update builds",
+    () =>
+      Effect.gen(function* () {
+        const applicationMenuTemplate =
+          yield* Deferred.make<readonly Electron.MenuItemConstructorOptions[]>();
+        const shownMessageBox = yield* Deferred.make<Electron.MessageBoxOptions>();
+        const openedExternalUrl = yield* Deferred.make<unknown>();
+        yield* configureMenu(
+          yield* Deferred.make<string>(),
+          applicationMenuTemplate,
+          { platform: "darwin" },
+          {
+            checkResult: {
+              checked: true,
+              state: {
+                ...createInitialDesktopUpdateState(
+                  "0.1.22",
+                  { hostArch: "arm64", appArch: "arm64", runningUnderArm64Translation: false },
+                  "latest",
+                ),
+                enabled: true,
+                status: "available",
+                availableVersion: "0.1.23",
+                manualDownloadOnly: true,
+              },
+            },
+            shownMessageBox,
+            messageBoxResponse: 0,
+            openedExternalUrl,
+          },
+        );
+
+        const appMenu = (yield* Deferred.await(applicationMenuTemplate))[0];
+        if (!Array.isArray(appMenu?.submenu)) {
+          throw new Error("Expected the macOS app menu submenu to be an array.");
+        }
+        const checkForUpdates = appMenu.submenu.find(
+          (item) => item.label === "Check for Updates...",
+        );
+        if (typeof checkForUpdates?.click !== "function") {
+          throw new Error("Expected Check for Updates... menu item to have a click handler.");
+        }
+
+        checkForUpdates.click(
+          {} as Electron.MenuItem,
+          {} as Electron.BrowserWindow,
+          {} as KeyboardEvent,
+        );
+        assert.equal(
+          yield* Deferred.await(openedExternalUrl),
+          "https://github.com/WYLINX601/Linx-Work/releases/tag/v0.1.23",
+        );
+      }),
   );
 
   it.effect("tells the user a downloaded update is ready when the menu check runs", () =>

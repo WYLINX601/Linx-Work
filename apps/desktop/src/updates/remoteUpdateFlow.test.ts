@@ -50,6 +50,19 @@ describe("nextRemoteDesktopUpdateStep", () => {
     );
   });
 
+  it("fails immediately when the desktop build requires manual updates", () => {
+    const state = makeState({
+      status: "available",
+      availableVersion: "1.2.4",
+      manualDownloadOnly: true,
+    });
+    assert.deepEqual(nextRemoteDesktopUpdateStep(state, NO_ATTEMPTS, null), {
+      action: "done",
+      outcome: "failed",
+      reason: "This desktop build requires downloading and installing updates manually.",
+    });
+  });
+
   it("fails immediately when updates are disabled, preferring the known reason", () => {
     const state = makeState({ enabled: false, status: "disabled" });
     assert.deepEqual(nextRemoteDesktopUpdateStep(state, NO_ATTEMPTS, "dev build"), {

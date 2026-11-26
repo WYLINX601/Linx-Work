@@ -107,9 +107,13 @@ export function nothingToMove(
  * install or without a feed. Off only because a policy rules out its nightly channel, it moves.
  */
 export function localUpdaterStaysPut(
-  state: Pick<DesktopUpdateState, "enabled" | "channelBlockedByPolicy"> | null | undefined,
+  state:
+    | Pick<DesktopUpdateState, "enabled" | "channelBlockedByPolicy" | "manualDownloadOnly">
+    | null
+    | undefined,
   target: DesktopUpdateChannel,
 ): boolean {
+  if (state?.manualDownloadOnly === true) return true;
   return (
     state?.enabled === false && !(target === "latest" && state.channelBlockedByPolicy === true)
   );

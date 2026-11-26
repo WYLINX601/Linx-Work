@@ -5,6 +5,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import type { DesktopUpdateChannel } from "@t3tools/contracts";
+import { LINX_RELEASE_REPOSITORY } from "@t3tools/shared/linxIdentity";
 import * as Electron from "electron";
 import { msg } from "gt-i18n";
 
@@ -12,6 +13,7 @@ import { makeComponentLogger } from "../app/DesktopObservability.ts";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as ElectronMenu from "../electron/ElectronMenu.ts";
+import * as ElectronShell from "../electron/ElectronShell.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import { applyLanguage, m, onLocaleChange } from "../i18n/messages.ts";
 import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
@@ -74,7 +76,15 @@ const trackLabel = (channel: DesktopUpdateChannel) =>
     ? m(msg("Nightly", { $context: "release track" }))
     : m(msg("Stable", { $context: "release track" }));
 
-const checkForUpdatesFromMenu = Effect.gen(function* () {
+const desktopReleaseUrl = (version: string | null) => {
+  const normalizedVersion = version?.trim();
+  const baseUrl = `https://github.com/${LINX_RELEASE_REPOSITORY}/releases`;
+  return normalizedVersion ? `${baseUrl}/tag/v${encodeURIComponent(normalizedVersion)}` : baseUrl;
+};
+
+const checkForUpdatesFromMenu = Effect.fn("desktop.menu.checkForUpdates")(function* (
+  electronShell: Option.Option<ElectronShell.ElectronShell["Service"]>,
+) {
   const updates = yield* DesktopUpdates.DesktopUpdates;
   const electronDialog = yield* ElectronDialog.ElectronDialog;
   const result = yield* updates.check("menu");
@@ -107,7 +117,15 @@ const checkForUpdatesFromMenu = Effect.gen(function* () {
       defaultId: 0,
       cancelId: 1,
     });
-    if (response === 0) yield* updates.download;
+    if (response === 0) {
+      if (updateState.manualDownloadOnly === true) {
+        if (Option.isSome(electronShell)) {
+          yield* electronShell.value.openExternal(desktopReleaseUrl(updateState.availableVersion));
+        }
+      } else {
+        yield* updates.download;
+      }
+    }
   } else if (updateState.status === "downloading") {
     yield* electronDialog.showMessageBox({
       type: "info",
@@ -155,31 +173,33 @@ const checkForUpdatesFromMenu = Effect.gen(function* () {
       buttons: [m(msg("OK"))],
     });
   }
-}).pipe(Effect.withSpan("desktop.menu.checkForUpdates"));
+});
 
-const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
-  const updates = yield* DesktopUpdates.DesktopUpdates;
-  const electronDialog = yield* ElectronDialog.ElectronDialog;
-  const disabledReason = yield* updates.disabledReason;
-  if (Option.isSome(disabledReason)) {
-    yield* logUpdaterInfo("manual update check requested, but updates are disabled", {
-      disabledReason: disabledReason.value,
-    });
-    yield* electronDialog.showMessageBox({
-      type: "info",
-      title: m(msg("Updates unavailable")),
-      message: m(msg("Automatic updates are not available right now.")),
-      detail: disabledReason.value,
-      buttons: [m(msg("OK"))],
-    });
-    return;
-  }
+const handleCheckForUpdatesMenuClick = Effect.fn("desktop.menu.handleCheckForUpdatesClick")(
+  function* (electronShell: Option.Option<ElectronShell.ElectronShell["Service"]>) {
+    const updates = yield* DesktopUpdates.DesktopUpdates;
+    const electronDialog = yield* ElectronDialog.ElectronDialog;
+    const disabledReason = yield* updates.disabledReason;
+    if (Option.isSome(disabledReason)) {
+      yield* logUpdaterInfo("manual update check requested, but updates are disabled", {
+        disabledReason: disabledReason.value,
+      });
+      yield* electronDialog.showMessageBox({
+        type: "info",
+        title: m(msg("Updates unavailable")),
+        message: m(msg("Automatic updates are not available right now.")),
+        detail: disabledReason.value,
+        buttons: [m(msg("OK"))],
+      });
+      return;
+    }
 
-  // Opening a window before backend confirmation can strand it on failed auth bootstrap.
-  const desktopWindow = yield* DesktopWindow.DesktopWindow;
-  yield* desktopWindow.activate;
-  yield* checkForUpdatesFromMenu;
-}).pipe(Effect.withSpan("desktop.menu.handleCheckForUpdatesClick"));
+    // Opening a window before backend confirmation can strand it on failed auth bootstrap.
+    const desktopWindow = yield* DesktopWindow.DesktopWindow;
+    yield* desktopWindow.activate;
+    yield* checkForUpdatesFromMenu(electronShell);
+  },
+);
 
 /** @public */
 export const make = Effect.gen(function* () {
@@ -187,6 +207,7 @@ export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const electronApp = yield* ElectronApp.ElectronApp;
   const clientSettings = yield* Effect.serviceOption(DesktopClientSettings.DesktopClientSettings);
+  const electronShell = yield* Effect.serviceOption(ElectronShell.ElectronShell);
   const context = yield* Effect.context<DesktopApplicationMenuRuntimeServices>();
   const runPromise = Effect.runPromiseWith(context);
   const runFork = Effect.runForkWith(context);
@@ -210,7 +231,7 @@ export const make = Effect.gen(function* () {
 
   const configure = Effect.gen(function* () {
     const checkForUpdatesClick = () => {
-      runMenuEffect("check-for-updates", handleCheckForUpdatesMenuClick);
+      runMenuEffect("check-for-updates", handleCheckForUpdatesMenuClick(electronShell));
     };
     const settingsClick = () => {
       runMenuEffect("open-settings", dispatchMenuAction("open-settings"));

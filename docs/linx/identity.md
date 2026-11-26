@@ -17,8 +17,9 @@
 | systemd / launchd       | `linx.service` / `com.linx.work.service`              | `t3code.service` / `com.t3tools.t3code.service`                 | —                             |
 | Windows 服务目录 / 任务 | `%LOCALAPPDATA%\linx` / `linx-<domain>-<user>`        | `%LOCALAPPDATA%\t3code` / `t3code-*`                            | —                             |
 | 托管策略                | `com.linx.work.policy`、`SOFTWARE\Policies\Linx\Linx` | `com.t3tools.t3code.policy`、`SOFTWARE\Policies\T3Tools\T3Code` | —                             |
+| 发布 / 更新仓库         | `WYLINX601/Linx-Work`                                 | `pingdotgg/t3code`                                              | —                             |
 
-本地 macOS 预览包使用临时签名（ad-hoc），不含 Developer ID、公证或自动更新源。
+未传 `--signed` 的 macOS 正式 SemVer 构建使用临时签名（ad-hoc）：写入指向 `WYLINX601/Linx-Work` 的 `app-update.yml` 以复用原生版本检测，同时标记 `linxManualUpdateOnly: true`，在发现新版本时改为跳转 GitHub Releases 手动下载覆盖安装，不触发 Squirrel.Mac 应用内替换。`-preview` 构建不含自动更新源。
 
 ### 旧版 Linx 的对话
 

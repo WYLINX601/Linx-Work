@@ -75,6 +75,13 @@ interface DesktopPreparedUpdateInstallResult extends DesktopUpdateActionResult {
 const AppUpdateYmlConfig = Schema.Record(Schema.String, Schema.String);
 type AppUpdateYmlConfig = typeof AppUpdateYmlConfig.Type;
 
+const AppPackageUpdateMetadata = Schema.Struct({
+  linxManualUpdateOnly: Schema.optional(Schema.Boolean),
+});
+const decodeAppPackageUpdateMetadata = Schema.decodeEffect(
+  Schema.fromJsonString(AppPackageUpdateMetadata),
+);
+
 const UpdateInfo = Schema.Struct({
   version: Schema.String,
   // Malformed notes must not block update-state decoding; normalizeDesktopUpdateReleaseNotes validates separately.
@@ -397,6 +404,7 @@ export const make = Effect.gen(function* () {
   const mockUpdates = config.mockUpdates && policy.message === null;
 
   const appUpdateYmlConfigRef = yield* Ref.make<Option.Option<AppUpdateYmlConfig>>(Option.none());
+  const manualDownloadOnlyRef = yield* Ref.make(false);
   const activeUpdateActionRef = yield* Ref.make<Option.Option<UpdateAction>>(Option.none());
   const installRunningBackendsRef = yield* Ref.make<
     ReadonlyArray<DesktopBackendPool.DesktopBackendInstance>
@@ -462,6 +470,17 @@ export const make = Effect.gen(function* () {
       }),
     ),
   );
+
+  const readManualDownloadOnly =
+    environment.isPackaged && !mockUpdates
+      ? fileSystem
+          .readFileString(environment.path.join(environment.appRoot, "package.json"), "utf-8")
+          .pipe(
+            Effect.flatMap(decodeAppPackageUpdateMetadata),
+            Effect.map((parsed) => parsed.linxManualUpdateOnly === true),
+            Effect.orElseSucceed(() => false),
+          )
+      : Effect.succeed(false);
 
   // electron-updater uses this marker to install .deb updates with dpkg.
   const isDebPackage =
@@ -664,7 +683,11 @@ export const make = Effect.gen(function* () {
       admitAfterCheck(
         Effect.gen(function* () {
           const state = yield* Ref.get(updateStateRef);
-          if (!(yield* Ref.get(updaterConfiguredRef)) || state.status !== "available") {
+          if (
+            (yield* Ref.get(manualDownloadOnlyRef)) ||
+            !(yield* Ref.get(updaterConfiguredRef)) ||
+            state.status !== "available"
+          ) {
             return "refused" as const;
           }
           const activeAction = yield* Ref.get(activeUpdateActionRef);
@@ -832,14 +855,15 @@ export const make = Effect.gen(function* () {
   );
 
   const baseUpdateState = (channel: DesktopUpdateChannel, disabledReason: Option.Option<string>) =>
-    Ref.get(notAppliedVersionRef).pipe(
-      Effect.map((notAppliedVersion) => ({
+    Effect.all([Ref.get(notAppliedVersionRef), Ref.get(manualDownloadOnlyRef)]).pipe(
+      Effect.map(([notAppliedVersion, manualDownloadOnly]) => ({
         ...createBaseUpdateState(channel, disabledReason, environment),
         // Callers fall back to the channel's reason only when nothing else turns updates off.
         ...(Option.isSome(disabledReason) &&
         disabledReason.value === Option.getOrUndefined(channelBlockedReason(channel))
           ? { channelBlockedByPolicy: true as const }
           : {}),
+        ...(manualDownloadOnly ? { manualDownloadOnly: true as const } : {}),
         ...Option.match(notAppliedVersion, {
           onNone: () => ({}),
           onSome: (version) => ({ notAppliedVersion: version }),
@@ -905,6 +929,7 @@ export const make = Effect.gen(function* () {
               state.downloadedVersion !== null &&
               (expectedVersion === undefined || state.downloadedVersion === expectedVersion);
             if (
+              (yield* Ref.get(manualDownloadOnlyRef)) ||
               (yield* Ref.get(desktopState.quitting)) ||
               !(yield* Ref.get(updaterConfiguredRef)) ||
               !hasExpectedDownload
@@ -1014,7 +1039,7 @@ export const make = Effect.gen(function* () {
   const installWithExpectedVersion = Effect.fn("desktop.updates.install")(function* (
     expectedVersion?: string,
   ) {
-    if (yield* Ref.get(desktopState.quitting)) {
+    if ((yield* Ref.get(manualDownloadOnlyRef)) || (yield* Ref.get(desktopState.quitting))) {
       return {
         accepted: false,
         completed: false,
@@ -1327,6 +1352,8 @@ export const make = Effect.gen(function* () {
 
       const appUpdateYmlConfig = yield* readAppUpdateYml;
       yield* Ref.set(appUpdateYmlConfigRef, appUpdateYmlConfig);
+      const manualDownloadOnly = yield* readManualDownloadOnly;
+      yield* Ref.set(manualDownloadOnlyRef, manualDownloadOnly);
 
       const notAppliedVersion = yield* readNotAppliedInstallVersion;
       yield* Ref.set(notAppliedVersionRef, notAppliedVersion);
@@ -1353,7 +1380,10 @@ export const make = Effect.gen(function* () {
       const settings = yield* desktopSettings.get;
       const disabledReason = yield* resolveDisabledReason;
       // A blocked nightly channel still lets the user switch back to stable, so it stays updatable.
-      yield* Ref.set(desktopState.canInstallUpdates, Option.isNone(disabledReason));
+      yield* Ref.set(
+        desktopState.canInstallUpdates,
+        Option.isNone(disabledReason) && !manualDownloadOnly,
+      );
       yield* setState(
         yield* baseUpdateState(
           settings.updateChannel,
